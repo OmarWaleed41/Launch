@@ -1,0 +1,65 @@
+﻿<Window x:Class="Launch_2.AddAppWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add App" Height="250" Width="400" WindowStartupLocation="CenterOwner" Background="DimGray">
+    <Grid Margin="10">
+        <Grid.Resources>
+            <!-- Style for rounded TextBox -->
+            <Style TargetType="TextBox" x:Key="RoundedTextBox">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TextBox">
+                            <Border x:Name="border" 
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                                <ScrollViewer x:Name="PART_ContentHost"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="border" Property="Opacity" Value="0.75"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="BorderBrush" Value="#FF7EB4EA"/>
+                                </Trigger>
+                                <Trigger Property="IsFocused" Value="True">
+                                    <Setter TargetName="border" Property="BorderBrush" Value="#FF569DE5"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Background" Value="White"/>
+                <Setter Property="BorderBrush" Value="#FFABADB3"/>
+                <Setter Property="Padding" Value="5"/>
+            </Style>
+        </Grid.Resources>
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Text="App Name:" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
+        <TextBox x:Name="AppNameBox" Grid.Row="0" Grid.Column="1" Margin="5" Style="{StaticResource RoundedTextBox}"/>
+
+        <TextBlock Text="App Path:" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
+        <TextBox x:Name="AppPathBox" Grid.Row="1" Grid.Column="1" Margin="5" Style="{StaticResource RoundedTextBox}"/>
+        <Button Content="Browse..." Grid.Row="1" Grid.Column="2" Click="BrowseApp_Click" Margin="5" Style="{StaticResource RoundedButton}"/>
+
+        <TextBlock Text="Image:" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"/>
+        <TextBox x:Name="ImagePathBox" Grid.Row="2" Grid.Column="1" Margin="5" Style="{StaticResource RoundedTextBox}"/>
+        <Button Content="Browse..." Grid.Row="2" Grid.Column="2" Click="BrowseImage_Click" Margin="5" Style="{StaticResource RoundedButton}"/>
+
+        <Button Content="Add" Grid.Row="3" Grid.Column="1" Width="80" Height="30" Click="Add_Click" Style="{StaticResource RoundedButton}"/>
+    </Grid>
+</Window>

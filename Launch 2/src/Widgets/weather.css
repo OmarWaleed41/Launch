@@ -1,0 +1,39 @@
+@font-face {
+    font-family: 'Quantum';
+    src: url('./fonts/Quantum.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Digital';
+    src: url('./fonts/TickingTimebombBB.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+*{
+    font-family: 'Digital', 'sans-serif';
+}
+body{
+    color: rgb(255, 255, 255);
+    display: flex;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+    height: 100dvh;
+    background-color: transparent !important;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+#weather {
+    display: flex;
+    font-family: 'Digital', sans-serif;
+    font-size: 2rem;
+    user-select: none;
+    color: #ffffff;
+    justify-content: center;
+    align-content: center;
+    align-items: center;
+
+}

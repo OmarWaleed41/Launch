@@ -1,0 +1,30 @@
+{
+  "overwatch": {
+    "Path": "\u0022F:\\Overwatch\\Overwatch Launcher.exe\u0022",
+    "Position": {
+      "X": 1564,
+      "Y": 444
+    }
+  },
+  "League": {
+    "Path": "\u0022C:\\Riot Games\\Riot Client\\RiotClientServices.exe\u0022 --launch-product=league_of_legends --launch-patchline=live",
+    "Position": {
+      "X": 1562,
+      "Y": 356
+    }
+  },
+  "Balatro": {
+    "Path": "F:\\Balatro\\Balatro.exe",
+    "Position": {
+      "X": 1564,
+      "Y": 532
+    }
+  },
+  "Steam": {
+    "Path": "F:\\Steam\\steam.exe",
+    "Position": {
+      "X": 48,
+      "Y": 418
+    }
+  }
+}
