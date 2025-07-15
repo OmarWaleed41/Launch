@@ -129,23 +129,16 @@ namespace Launch_2
                 IsHitTestVisible = false // Crucial for allowing events to pass through
             };
 
-            // Create a container that will handle all interactions
             var container = new Border
             {
                 Width = widget.Size.Width,
                 Height = widget.Size.Height,
-                Background = Brushes.Red, // Hit-testable but invisible
-                Child = webView,
+                BorderBrush = Brushes.Transparent,
+                BorderThickness = new Thickness(4),
+                Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)),
                 Cursor = Cursors.Hand,
-                BorderBrush = Brushes.Blue,
-                BorderThickness = new Thickness(2)
+                Child = webView
             };
-
-            // Add debug event handlers
-            container.MouseEnter += (s, e) => Debug.WriteLine($"Mouse ENTERED {widgetName}");
-            container.MouseLeave += (s, e) => Debug.WriteLine($"Mouse LEFT {widgetName}");
-            container.PreviewMouseDown += (s, e) => Debug.WriteLine($"Mouse DOWN on {widgetName}");
-            container.PreviewMouseUp += (s, e) => Debug.WriteLine($"Mouse UP on {widgetName}");
 
             // Add to canvas
             MainCanvas.Children.Add(container);
@@ -153,14 +146,13 @@ namespace Launch_2
             Canvas.SetTop(container, widget.Position.Y);
 
             // Set up drag behavior
-            container.PreviewMouseLeftButtonDown += Widget_MouseLeftButtonDown;
-            container.PreviewMouseMove += Widget_MouseMove;
-            container.PreviewMouseLeftButtonUp += Widget_MouseLeftButtonUp;
+            //container.PreviewMouseLeftButtonDown += Widget_MouseLeftButtonDown;
+            //container.PreviewMouseMove += Widget_MouseMove;
+            //container.PreviewMouseLeftButtonUp += Widget_MouseLeftButtonUp;
 
             // WebView2 initialization
             try
             {
-                Debug.WriteLine($"Starting WebView2 initialization for {widgetName}");
                 await webView.EnsureCoreWebView2Async();
 
                 // Configure WebView2 to prevent interference
@@ -173,81 +165,38 @@ namespace Launch_2
                 webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "app", MainFolder, CoreWebView2HostResourceAccessKind.Allow);
 
-                Debug.WriteLine($"Navigating WebView2 to widget content for {widgetName}");
                 webView.CoreWebView2.Navigate($"http://app/Widgets/{widgetName}.html");
+
+
+                webView.WebMessageReceived += (s, e) =>
+                {
+                    try
+                    {
+                        var msg = JsonSerializer.Deserialize<JsonElement>(e.WebMessageAsJson);
+                        if (msg.GetProperty("type").GetString() == "drag")
+                        {
+                            var dx = msg.GetProperty("dx").GetInt32();
+                            var dy = msg.GetProperty("dy").GetInt32();
+
+                            double left = Canvas.GetLeft(container);
+                            double top = Canvas.GetTop(container);
+
+                            Canvas.SetLeft(container, left + dx);
+                            Canvas.SetTop(container, top + dy);
+                            UpdateWidgetPositions();
+                        }
+                    }
+                    catch
+                    {
+                        
+                    }
+                };
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"WebView2 initialization failed for {widgetName}: {ex.Message}");
             }
         }
-
-        // Widget drag
-        private void Widget_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            Debug.WriteLine("Widget drag started");
-            if (e.ChangedButton == MouseButton.Left && sender is Border container)
-            {
-                // Visual feedback
-                container.BorderBrush = Brushes.White;
-                container.Background = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255));
-
-                draggedElement = container;
-                clickPosition = e.GetPosition(MainCanvas);
-                isDragging = false;
-                draggedElement.CaptureMouse();
-                Panel.SetZIndex(draggedElement, 100);
-                e.Handled = true;
-            }
-        }
-
-        private void Widget_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (draggedElement != null && e.LeftButton == MouseButtonState.Pressed)
-            {
-                Point currentPosition = e.GetPosition(MainCanvas);
-                Vector diff = currentPosition - clickPosition;
-
-                if (!isDragging && diff.Length > DragThreshold)
-                {
-                    isDragging = true;
-                }
-
-                if (isDragging && draggedElement is Border container)
-                {
-                    double newLeft = Canvas.GetLeft(container) + diff.X;
-                    double newTop = Canvas.GetTop(container) + diff.Y;
-
-                    newLeft = Math.Max(0, Math.Min(newLeft, MainCanvas.ActualWidth - container.ActualWidth));
-                    newTop = Math.Max(0, Math.Min(newTop, MainCanvas.ActualHeight - container.ActualHeight));
-
-                    Canvas.SetLeft(container, newLeft);
-                    Canvas.SetTop(container, newTop);
-
-                    clickPosition = currentPosition;
-                    e.Handled = true;
-                }
-            }
-        }
-
-        private void Widget_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            Debug.WriteLine("Widget drag ended");
-            if (draggedElement is Border container)
-            {
-                // Reset visual feedback
-                container.BorderBrush = Brushes.Transparent;
-                container.Background = Brushes.Transparent;
-
-                container.ReleaseMouseCapture();
-                if (isDragging) UpdateWidgetPositions();
-                Panel.SetZIndex(container, 0);
-            }
-            isDragging = false;
-            draggedElement = null;
-            e.Handled = true;
-        }
-
         private void UpdateWidgetPositions()
         {
             try
@@ -382,7 +331,7 @@ namespace Launch_2
             };
             Canvas.SetLeft(appButton, position.X);
             Canvas.SetTop(appButton, position.Y);
-
+            
             MainCanvas.Children.Add(appButton);
 
             appButton.PreviewMouseLeftButtonDown += Button_MouseLeftButtonDown;
