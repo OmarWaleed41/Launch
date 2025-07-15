@@ -23,3 +23,5 @@ If you want to make your own widget you need:
 * Some Creativity
 
 But jokes aside, you want to make your normal widget(webpage) and just add 2 things that you'll find inside the clock and weather widget that came with the app, the draglayer div and drag.js as the first things in the page
+
+As of now i still didn't add the feature like adding a button however im working on it, for now just take your files, put them in the widget folder and add it to the `widget.json` and voila
