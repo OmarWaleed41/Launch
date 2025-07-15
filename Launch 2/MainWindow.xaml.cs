@@ -461,19 +461,45 @@ namespace Launch_2
                 // right here yes
                 if (!isDragging)
                 {
-                    string path = (string)((Button)sender).Tag;
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = path,
+                    string fullCommand = (string)((Button)sender).Tag;
 
-                            UseShellExecute = true
-                        });
-                    }
-                    catch (Exception ex)
+                    // Extract quoted path
+                    string pattern = "^\"([^\"]+)\"\\s*(.*)";
+                    var match = System.Text.RegularExpressions.Regex.Match(fullCommand, pattern);
+
+                    if (match.Success)
                     {
-                        MessageBox.Show($"Error launching application: {ex.Message}");
+                        string exePath = match.Groups[1].Value;
+                        string arguments = match.Groups[2].Value;
+
+                        try
+                        {
+                            Process.Start(new ProcessStartInfo
+                            {
+                                FileName = exePath,
+                                Arguments = arguments,
+                                UseShellExecute = true
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Error launching application: {ex.Message}");
+                        }
+                    }
+                    else
+                    {
+                        try
+                        {
+                            Process.Start(new ProcessStartInfo
+                            {
+                                FileName = fullCommand,
+                                UseShellExecute = true
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Error launching application: {ex.Message}");
+                        }
                     }
                 }
                 else if (isDragging && snapToGrid)
