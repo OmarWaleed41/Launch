@@ -1,5 +1,8 @@
-# Launch 2
+**Launch 2**
+The Lightweight desktop customization app you are looking for
 
-/Still Under devolpment/
+wana spice things up your way?
+you can make your own widgets
+and also make custom looking App Buttons in Whatever style you want
 
-this is going to be the next level desktop customization app
+The Project is still under devolopment so feel free to let me know if there are bugs or features that you want (constructive critisism i like indeed)
