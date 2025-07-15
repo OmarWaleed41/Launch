@@ -27,8 +27,12 @@ namespace Launch_2
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
-        string MainFolder = "C:\\Users\\omarz\\source\\repos\\Launch 2\\Launch 2\\src";
+        string Base = System.AppDomain.CurrentDomain.BaseDirectory;
 
+
+        //string MainFolder = "C:\\Users\\omarz\\source\\repos\\Launch 2\\Launch 2\\src";
+
+        string MainFolder;
         string jsonFilePath;
         string widgetPath;
         string imgPath;
@@ -42,11 +46,12 @@ namespace Launch_2
 
         public MainWindow()
         {
+            MainFolder = Path.Combine(Base, "src");
             jsonFilePath = Path.Combine(MainFolder, "path.json");
             widgetPath = Path.Combine(MainFolder, "widgets.json");
             imgPath = Path.Combine(MainFolder, "imgs");
 
-            button_size = 70;
+            button_size = 70; //we should proably add a settings.json to save adjustments 
 
             InitializeComponent();
             ReadPathJson();
@@ -120,13 +125,12 @@ namespace Launch_2
         {
             Debug.WriteLine($"Initializing widget: {widgetName}");
 
-            // Create the WebView2 control
             var webView = new WebView2
             {
                 Width = widget.Size.Width,
                 Height = widget.Size.Height,
                 DefaultBackgroundColor = System.Drawing.Color.Transparent,
-                IsHitTestVisible = false // Crucial for allowing events to pass through
+                IsHitTestVisible = false
             };
 
             var container = new Border
@@ -144,11 +148,6 @@ namespace Launch_2
             MainCanvas.Children.Add(container);
             Canvas.SetLeft(container, widget.Position.X);
             Canvas.SetTop(container, widget.Position.Y);
-
-            // Set up drag behavior
-            //container.PreviewMouseLeftButtonDown += Widget_MouseLeftButtonDown;
-            //container.PreviewMouseMove += Widget_MouseMove;
-            //container.PreviewMouseLeftButtonUp += Widget_MouseLeftButtonUp;
 
             // WebView2 initialization
             try
@@ -589,20 +588,21 @@ namespace Launch_2
                 CreateAppButton(addWindow.AppName, addWindow.AppPath, new Point(position.X, position.Y));
             }
         }
-        //private void RemoveAppButton_Click(object sender, RoutedEventArgs e)
-        //{
-        //    var removeWindow = new RemoveApp();
-        //    removeWindow.Owner = this;
-        //    bool? removed = removeWindow.ShowDialog();
-        //    if (removed == true)
-        //    {
-        //        Refresh_Page();
-        //    }
-        //}
+        private void RemoveAppButton_Click(object sender, RoutedEventArgs e)
+        {
+            var removeWindow = new RemoveApp();
+            removeWindow.Owner = this;
+            bool? removed = removeWindow.ShowDialog();
+            if (removed == true)
+            {
+                Refresh_Page();
+            }
+        }
         private void Refresh_Page()
         {
             MainCanvas.Children.Clear();
             ReadPathJson();
+            ReadWidgetJson();
         }
         private void Open_Click(object sender, RoutedEventArgs e)
         {
