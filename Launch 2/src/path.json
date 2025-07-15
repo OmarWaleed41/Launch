@@ -2,22 +2,15 @@
   "overwatch": {
     "Path": "\u0022F:\\Overwatch\\Overwatch Launcher.exe\u0022",
     "Position": {
-      "X": 1564,
-      "Y": 444
-    }
-  },
-  "League": {
-    "Path": "\u0022C:\\Riot Games\\Riot Client\\RiotClientServices.exe\u0022 --launch-product=league_of_legends --launch-patchline=live",
-    "Position": {
-      "X": 1562,
-      "Y": 356
+      "X": 1486,
+      "Y": 437
     }
   },
   "Balatro": {
     "Path": "F:\\Balatro\\Balatro.exe",
     "Position": {
-      "X": 1564,
-      "Y": 532
+      "X": 1569,
+      "Y": 530
     }
   },
   "Steam": {
@@ -25,6 +18,41 @@
     "Position": {
       "X": 48,
       "Y": 418
+    }
+  },
+  "League": {
+    "Path": "\u0022C:\\Riot Games\\Riot Client\\RiotClientServices.exe\\\u0022 --launch-product=league_of_legends --launch-patchline=live",
+    "Position": {
+      "X": 1563,
+      "Y": 344
+    }
+  },
+  "fh5": {
+    "Path": "F:\\Games\\Forza Horizon 5\\ForzaHorizon5.exe",
+    "Position": {
+      "X": 1493,
+      "Y": 631
+    }
+  },
+  "hld": {
+    "Path": "F:\\Hyper.Light.Drifter\\Hyper.Light.Drifter.v31.12.2022\\HyperLightDrifter.exe",
+    "Position": {
+      "X": 1570,
+      "Y": 723
+    }
+  },
+  "hades": {
+    "Path": "F:\\Games\\Hades\\x86\\Hades.exe",
+    "Position": {
+      "X": 1475,
+      "Y": 270
+    }
+  },
+  "fl": {
+    "Path": "C:\\Program Files\\Image-Line\\FL Studio 21\\FL64.exe",
+    "Position": {
+      "X": -586,
+      "Y": 273
     }
   }
 }

@@ -15,17 +15,13 @@
     font-family: 'Digital', 'sans-serif';
 }
 body{
+    margin: 0;
     color: rgb(255, 255, 255);
     display: flex;
     align-content: center;
     justify-content: center;
     align-items: center;
     height: 100dvh;
-    background-color: transparent !important;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    pointer-events: none; /* Critical! */
 }
 #weather {
     display: flex;
