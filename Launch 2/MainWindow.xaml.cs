@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -342,22 +342,6 @@ namespace Launch_2
 
 
         }
-
-        // no clue why is this here and so far it looks like it does nothing but i do not understand it so i'll leave it
-
-        //public string GetVisualTreeAsXaml(Panel panel)
-        //{
-        //    StringBuilder sb = new StringBuilder();
-        //    foreach (UIElement child in panel.Children)
-        //    {
-        //        if (child is Button btn)
-        //        {
-        //            sb.AppendLine($"<Button Content=\"{btn.Content}\" Margin=\"{btn.Margin}\" />");
-        //        }
-        //        // Add more cases for other element types if needed
-        //    }
-        //    return sb.ToString();
-        //}
 
         private void Button_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
