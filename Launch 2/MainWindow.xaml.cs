@@ -144,7 +144,6 @@ namespace Launch_2
                 Child = webView
             };
 
-            // Add to canvas
             MainCanvas.Children.Add(container);
             Canvas.SetLeft(container, widget.Position.X);
             Canvas.SetTop(container, widget.Position.Y);
@@ -152,7 +151,10 @@ namespace Launch_2
             // WebView2 initialization
             try
             {
-                await webView.EnsureCoreWebView2Async();
+                var envOptions = new CoreWebView2EnvironmentOptions("--disable-gpu --disable-software-rasterizer");
+                var env = await CoreWebView2Environment.CreateAsync(null, null, envOptions);
+
+                await webView.EnsureCoreWebView2Async(env);
 
                 // Configure WebView2 to prevent interference
                 webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
@@ -160,12 +162,11 @@ namespace Launch_2
                 webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
 
-                // Set up virtual host mapping
+                // Set up virtual host 
                 webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "app", MainFolder, CoreWebView2HostResourceAccessKind.Allow);
 
-                webView.CoreWebView2.Navigate($"http://app/Widgets/{widgetName}.html");
-
+                webView.CoreWebView2.Navigate($"http://app/Widgets/{widgetName}/{widgetName}.html");
 
                 webView.WebMessageReceived += (s, e) =>
                 {
@@ -187,7 +188,7 @@ namespace Launch_2
                     }
                     catch
                     {
-                        
+                        MessageBox.Show($"Error Loading From JS");
                     }
                 };
             }
