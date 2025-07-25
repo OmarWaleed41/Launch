@@ -4,17 +4,16 @@
              xmlns:local="clr-namespace:Launch_2"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <!-- Global Styles (Like CSS) -->
         <Style TargetType="TextBox" x:Key="RoundedTextBox">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
                         <Border 
-                        CornerRadius="8" 
-                        Background="White"
-                        BorderBrush="#ABADB3" 
-                        BorderThickness="1"
-                        Padding="5">
+                            CornerRadius="8" 
+                            Background="#f09f9c"
+                            BorderBrush="#ABADB3" 
+                            BorderThickness="1"
+                            Padding="5">
                             <ScrollViewer x:Name="PART_ContentHost"/>
                         </Border>
                     </ControlTemplate>
@@ -22,25 +21,65 @@
             </Setter>
         </Style>
 
+        <!--.......................................................................-->
+
         <Style TargetType="Button" x:Key="RoundedButton">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border 
-                        CornerRadius="8" 
-                        Background="#0078D7"
-                        BorderBrush="Transparent"
-                        BorderThickness="0"
-                        Padding="10,5">
+                            CornerRadius="8" 
+                            Background="#0078D7"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            Padding="10,5">
                             <ContentPresenter 
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"/>
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!--.......................................................................-->
+
+        <Style x:Key="RoundedButtonStyle" TargetType="Button">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="Black"/>
+            <Setter Property="Background" Value="#fcc3a3"/>
+            <Setter Property="BorderBrush" Value="Black"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="FontWeight" Value="DemiBold"/>
+        </Style>
+
+        <!--.......................................................................-->
+
+        <Style x:Key="CustomWindowStyle" TargetType="Window">
+            <Setter Property="WindowChrome.WindowChrome">
+                <Setter.Value>
+                    <WindowChrome
+                        CaptionHeight="0"
+                        CornerRadius="0"
+                        GlassFrameThickness="0"
+                        ResizeBorderThickness="5" />
+                </Setter.Value>
+            </Setter>
         </Style>
     </Application.Resources>
 </Application>

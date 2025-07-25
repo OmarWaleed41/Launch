@@ -29,9 +29,6 @@ namespace Launch_2
 
         string Base = System.AppDomain.CurrentDomain.BaseDirectory;
 
-
-        //string MainFolder = "C:\\Users\\omarz\\source\\repos\\Launch 2\\Launch 2\\src";
-
         string MainFolder;
         string jsonFilePath;
         string widgetPath;
@@ -527,60 +524,57 @@ namespace Launch_2
         }
 
         // now to the taskbar options
-        private void AddAppButton_Click(object sender, RoutedEventArgs e)
+
+        private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            var addWindow = new AddAppWindow();
-            addWindow.Owner = this;
-            if (addWindow.ShowDialog() == true)
+            Settings settingsWindow = new Settings();
+            settingsWindow.Owner = this;
+            if(settingsWindow.ShowDialog() == true)
             {
-                
-                string destImgPath = Path.Combine(imgPath, addWindow.AppName + ".png");
-                try
+                if(settingsWindow.SetStatus == "add")
                 {
-                    File.Copy(addWindow.ImagePath, destImgPath, true);
+                    string destImgPath = Path.Combine(imgPath, settingsWindow.AppName + ".png");
+                    try
+                    {
+                        File.Copy(settingsWindow.ImagePath, destImgPath, true);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Failed to copy image: " + ex.Message);
+                        return;
+                    }
+                    // Add to JSON
+                    string json = File.ReadAllText(jsonFilePath);
+                    var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    // Default position will be in the upper left corner
+                    var position = new Position
+                    {
+                        X = 20,
+                        Y = 20
+                    };
+
+                    apps[settingsWindow.AppName] = new AppInfo
+                    {
+                        Path = settingsWindow.AppPath,
+                        Position = position
+                    };
+
+                    string updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions
+                    {
+                        WriteIndented = true
+                    });
+                    File.WriteAllText(jsonFilePath, updatedJson);
+
+                    // Add the button in real time
+                    CreateAppButton(settingsWindow.AppName, settingsWindow.AppPath, new Point(position.X, position.Y));
                 }
-                catch (Exception ex)
+                else if (settingsWindow.SetStatus == "remove")
                 {
-                    MessageBox.Show("Failed to copy image: " + ex.Message);
-                    return;
+                    Refresh_Page();
                 }
-                // Add to JSON
-                string json = File.ReadAllText(jsonFilePath);
-                var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-                // Default position will be in the upper left corner
-                var position = new Position
-                {
-                    X = 20,
-                    Y = 20
-                };
-
-                apps[addWindow.AppName] = new AppInfo
-                {
-                    Path = addWindow.AppPath,
-                    Position = position
-                };
-
-                string updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-                File.WriteAllText(jsonFilePath, updatedJson);
-
-                // Add the button in real time
-                CreateAppButton(addWindow.AppName, addWindow.AppPath, new Point(position.X, position.Y));
-            }
-        }
-        private void RemoveAppButton_Click(object sender, RoutedEventArgs e)
-        {
-            var removeWindow = new RemoveApp();
-            removeWindow.Owner = this;
-            bool? removed = removeWindow.ShowDialog();
-            if (removed == true)
-            {
-                Refresh_Page();
             }
         }
         private void Refresh_Page()
