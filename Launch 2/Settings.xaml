@@ -1,0 +1,34 @@
+﻿<Window x:Class="Launch_2.Settings"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Launch_2"
+        mc:Ignorable="d"
+        Title="Window1"
+        Height="600" Width="800"
+        Style="{StaticResource CustomWindowStyle}"
+        WindowStyle="None"
+        Background="#222021"
+        AllowsTransparency="False">
+
+    <Border BorderThickness="1" BorderBrush="Black">
+        <Grid Background="#270f36">
+
+            <Border Background="#270f36" Height="24" VerticalAlignment="Top" MouseDown="DragWindow" Margin="0,0,0,100">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="—" Width="32" Click="Minimize_Click" Background="#20000000" Foreground="Bisque"/>
+                    <Button Content="⨉" Width="32" Click="Close_Click" Background="#20000000" Foreground="Bisque"/>
+                </StackPanel>
+            </Border>
+            <Button x:Name="apps" Content="Apps" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="10,34,10,10" Style="{StaticResource RoundedButtonStyle}" Click="apps_tab"/>
+            <Button x:Name="widgets" Content="Widgets" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="10,74,0,0" Style="{StaticResource RoundedButtonStyle}" Click="widgets_tab"/>
+            <Button x:Name="settings" Content="Settings" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="10,114,0,0" Style="{StaticResource RoundedButtonStyle}"/>
+            <Border BorderBrush="Black" Margin="120,24,0,0" BorderThickness="2,2,0,0">
+                <Grid x:Name="main" Background="#632b6c">
+
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
