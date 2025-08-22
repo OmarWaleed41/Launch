@@ -14,6 +14,10 @@ using System.Text;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System.DirectoryServices;
+using System.IO.Compression;
+using System.Windows.Shapes;
+using Path = System.IO.Path;
+
 
 // Well Welcome to my Humble little (it's not) project, so if you like great customization other apps don't offer (yes im talking to you rainmeter) you have come to the right place
 
@@ -30,30 +34,41 @@ namespace Launch_2
         string Base = System.AppDomain.CurrentDomain.BaseDirectory;
 
         string MainFolder;
+        string settingsPath;
         string jsonFilePath;
         string widgetPath;
+        string widgetsFolder;
         string imgPath;
         double button_size;
         private bool isDragging = false;
         private Point clickPosition;
         private UIElement draggedElement;
-        private bool snapToGrid = false;
+
+        public bool snapToGrid;
+        public bool showGrid;
+
         private const double DragThreshold = 1;
-        private double gridSize = 50;
+        private double gridSizeX;
+        private double gridSizeY;
+        private double CanvasPadding = 30;
 
         public MainWindow()
         {
             MainFolder = Path.Combine(Base, "src");
+            settingsPath = Path.Combine(MainFolder, "settings.json");
             jsonFilePath = Path.Combine(MainFolder, "path.json");
             widgetPath = Path.Combine(MainFolder, "widgets.json");
+            widgetsFolder = Path.Combine(MainFolder, "Widgets");
             imgPath = Path.Combine(MainFolder, "imgs");
 
-            button_size = 70; //we should proably add a settings.json to save adjustments 
+            Properties.Settings.Default.PropertyChanged += SettingsChanged;
 
             InitializeComponent();
+            ReadSettingsJson();
             ReadPathJson();
             ReadWidgetJson();
             SetWindowSize();
+   
             Loaded += OnWindowLoaded;
         }
         private void SetWindowSize()
@@ -62,6 +77,16 @@ namespace Launch_2
             this.Height = SystemParameters.PrimaryScreenHeight - 50;
             this.Left = 0;
             this.Top = 0;
+            MainCanvas.Margin = new Thickness(30);
+        }
+
+        private void ReadSettingsJson()
+        {
+            button_size = Properties.Settings.Default.ButtonSize;
+            snapToGrid = Properties.Settings.Default.SnapToGrid;
+            gridSizeX = Properties.Settings.Default.GridSizeX;
+            gridSizeY = Properties.Settings.Default.GridSizeY;
+            showGrid = Properties.Settings.Default.ShowGrid;
         }
 
         private void ReadPathJson()
@@ -507,8 +532,8 @@ namespace Launch_2
             double left = Canvas.GetLeft(element);
             double top = Canvas.GetTop(element);
 
-            double snappedLeft = Math.Round(left / gridSize) * gridSize;
-            double snappedTop = Math.Round(top / gridSize) * gridSize;
+            double snappedLeft = Math.Round(left / gridSizeX) * gridSizeX;
+            double snappedTop = Math.Round(top / gridSizeY) * gridSizeY;
 
             Canvas.SetLeft(element, snappedLeft);
             Canvas.SetTop(element, snappedTop);
@@ -527,60 +552,57 @@ namespace Launch_2
 
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            Settings settingsWindow = new Settings();
+            var settingsWindow = new Settings(this);
             settingsWindow.Owner = this;
-            if(settingsWindow.ShowDialog() == true)
+
+            settingsWindow.UpdateRequested += (s, action) =>
             {
-                if(settingsWindow.SetStatus == "add")
+                if (action == "add")
                 {
-                    string destImgPath = Path.Combine(imgPath, settingsWindow.AppName + ".png");
-                    try
-                    {
-                        File.Copy(settingsWindow.ImagePath, destImgPath, true);
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show("Failed to copy image: " + ex.Message);
-                        return;
-                    }
-                    // Add to JSON
-                    string json = File.ReadAllText(jsonFilePath);
-                    var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
-                    // Default position will be in the upper left corner
-                    var position = new Position
-                    {
-                        X = 20,
-                        Y = 20
-                    };
-
-                    apps[settingsWindow.AppName] = new AppInfo
-                    {
-                        Path = settingsWindow.AppPath,
-                        Position = position
-                    };
-
-                    string updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions
-                    {
-                        WriteIndented = true
-                    });
-                    File.WriteAllText(jsonFilePath, updatedJson);
-
-                    // Add the button in real time
-                    CreateAppButton(settingsWindow.AppName, settingsWindow.AppPath, new Point(position.X, position.Y));
+                    Refresh_Apps();
                 }
-                else if (settingsWindow.SetStatus == "remove")
+                else if (action == "add_widget")
+                {
+
+                    Refresh_Widgets();
+                }
+                else if (action == "remove")
                 {
                     Refresh_Page();
                 }
+            };
+
+            settingsWindow.Show(); // NOT ShowDialog
+        }
+        private void SettingsChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(Properties.Settings.Default.ShowGrid))
+            {
+                Refresh_Page(); // re-draw whenever ShowGrid changes
+            }
+            else if (e.PropertyName == nameof(Properties.Settings.Default.SnapToGrid))
+            {
+                snapToGrid = Properties.Settings.Default.SnapToGrid;
             }
         }
-        private void Refresh_Page()
+        public void Refresh_Page()
         {
             MainCanvas.Children.Clear();
             ReadPathJson();
+            ReadWidgetJson();
+            if (Properties.Settings.Default.ShowGrid)
+            {
+                DrawGridLines();
+            }
+        }
+        private void Refresh_Apps()
+        {
+            MainCanvas.Children.Clear();
+            ReadPathJson();
+        }
+        private void Refresh_Widgets()
+        {
+            MainCanvas.Children.Clear();
             ReadWidgetJson();
         }
         private void Open_Click(object sender, RoutedEventArgs e)
@@ -588,10 +610,46 @@ namespace Launch_2
             this.Show();
             this.WindowState = WindowState.Normal;
         }
-
         private void Exit_Click(object sender, RoutedEventArgs e)
         {
             Application.Current.Shutdown();
+        }
+        private void DrawGridLines()
+        {
+            double width = MainCanvas.ActualWidth;
+            double height = MainCanvas.ActualHeight;
+
+            for (double x = 0; x < width; x += gridSizeX)
+            {
+                Line verticalLine = new Line
+                {
+                    X1 = x,
+                    Y1 = 0,
+                    X2 = x,
+                    Y2 = height,
+                    Stroke = Brushes.Blue,
+                    StrokeThickness = 1,
+                    Opacity = 1,
+                    IsHitTestVisible = false
+                };
+                MainCanvas.Children.Add(verticalLine);
+            }
+
+            for (double y = 0; y < height; y += gridSizeY)
+            {
+                Line horizontalLine = new Line
+                {
+                    X1 = 0,
+                    Y1 = y,
+                    X2 = width,
+                    Y2 = y,
+                    Stroke = Brushes.Blue,
+                    StrokeThickness = 1,
+                    Opacity = 1,
+                    IsHitTestVisible = false
+                };
+                MainCanvas.Children.Add(horizontalLine);
+            }
         }
     }
 

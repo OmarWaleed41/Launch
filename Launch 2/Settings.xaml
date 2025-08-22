@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Launch_2"
         mc:Ignorable="d"
-        Title="Window1"
+        Title="Settings"
         Height="600" Width="800"
         Style="{StaticResource CustomWindowStyle}"
         WindowStyle="None"
@@ -23,7 +23,7 @@
             </Border>
             <Button x:Name="apps" Content="Apps" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="10,34,10,10" Style="{StaticResource RoundedButtonStyle}" Click="apps_tab"/>
             <Button x:Name="widgets" Content="Widgets" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="10,74,0,0" Style="{StaticResource RoundedButtonStyle}" Click="widgets_tab"/>
-            <Button x:Name="settings" Content="Settings" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="10,114,0,0" Style="{StaticResource RoundedButtonStyle}"/>
+            <Button x:Name="settings" Content="Settings" HorizontalAlignment="Left" VerticalAlignment="Top" Width="100" Height="30" Margin="10,114,0,0" Style="{StaticResource RoundedButtonStyle}" Click="settings_tab"/>
             <Border BorderBrush="Black" Margin="120,24,0,0" BorderThickness="2,2,0,0">
                 <Grid x:Name="main" Background="#632b6c">
 
