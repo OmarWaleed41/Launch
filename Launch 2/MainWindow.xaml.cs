@@ -564,7 +564,7 @@ namespace Launch_2
                 else if (action == "add_widget")
                 {
 
-                    Refresh_Widgets();
+                    Refresh_Page();
                 }
                 else if (action == "remove")
                 {
