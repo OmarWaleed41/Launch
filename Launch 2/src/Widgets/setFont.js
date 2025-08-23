@@ -1,6 +1,6 @@
 (function () {
   const fontName = "Digital";
-  const fontUrl = "../fonts/TickingTimebombBB.ttf"; // adjust path relative to HTML location
+  const fontUrl = "../fonts/TickingTimebombBB.ttf";
 
   const style = document.createElement("style");
   style.textContent = `
@@ -15,3 +15,4 @@
   `;
   document.head.appendChild(style);
 })();
+
