@@ -10,7 +10,7 @@
                     <ControlTemplate TargetType="TextBox">
                         <Border 
                             CornerRadius="8" 
-                            Background="#f09f9c"
+                            Background="#DFD0B8"
                             BorderBrush="#ABADB3" 
                             BorderThickness="1"
                             Padding="5">
@@ -61,7 +61,7 @@
                 </Setter.Value>
             </Setter>
             <Setter Property="Foreground" Value="Black"/>
-            <Setter Property="Background" Value="#fcc3a3"/>
+            <Setter Property="Background" Value="#DFD0B8"/>
             <Setter Property="BorderBrush" Value="Black"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="10,5"/>
