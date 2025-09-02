@@ -613,6 +613,12 @@ namespace Launch_2
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left
             };
+            Settings_ButtonSize.TextChanged += (s, e) =>
+            {
+                int.TryParse(Settings_ButtonSize.Text, out int newSize);
+                Properties.Settings.Default.ButtonSize = newSize;
+                Properties.Settings.Default.Save();
+            };
             settings_grid.Children.Add(Settings_ButtonSize);
             Grid.SetRow(Settings_ButtonSize, 0);
             Grid.SetColumn(Settings_ButtonSize, 1);
@@ -651,11 +657,19 @@ namespace Launch_2
 
             Settings_GridSizeX = new TextBox
             {
+                Text = $"{gridSizeX}",
                 Margin = new Thickness(5),
                 Style = (Style)FindResource("RoundedTextBox"),
                 Width = 50,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left
+            };
+            Settings_GridSizeX.TextChanged += (s, e) =>
+            {
+                int.TryParse(Settings_GridSizeX.Text, out int newSize);
+                Debug.WriteLine(newSize);
+                Properties.Settings.Default.GridSizeX = newSize;
+                Properties.Settings.Default.Save();
             };
             settings_grid.Children.Add(Settings_GridSizeX);
             Grid.SetRow(Settings_GridSizeX, 2);
@@ -673,11 +687,19 @@ namespace Launch_2
 
             Settings_GridSizeY = new TextBox
             {
+                Text = $"{gridSizeY}",
                 Margin = new Thickness(5),
                 Style = (Style)FindResource("RoundedTextBox"),
                 Width = 50,
                 VerticalAlignment = VerticalAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Left
+            };
+            Settings_GridSizeY.TextChanged += (s, e) =>
+            {
+                int.TryParse(Settings_GridSizeY.Text, out int newSize);
+                Debug.WriteLine(newSize);
+                Properties.Settings.Default.GridSizeY = newSize;
+                Properties.Settings.Default.Save();
             };
             settings_grid.Children.Add(Settings_GridSizeY);
             Grid.SetRow(Settings_GridSizeY, 3);
@@ -729,7 +751,7 @@ namespace Launch_2
             Properties.Settings.Default.SnapToGrid = snapToGrid;
             Properties.Settings.Default.Save();
             //_MainWindow.Refresh_Page();
-            MessageBox.Show((Convert.ToString(snapToGrid)));
+            //MessageBox.Show((Convert.ToString(snapToGrid)));
         }
 
         private void BrowseApp_Click(object sender, RoutedEventArgs e)

@@ -52,6 +52,8 @@ namespace Launch_2
         private double gridSizeY;
         private double CanvasPadding = 30;
 
+        private static CoreWebView2Environment sharedEnv;
+
         public MainWindow()
         {
             MainFolder = Path.Combine(Base, "src");
@@ -173,10 +175,7 @@ namespace Launch_2
             // WebView2 initialization
             try
             {
-                var envOptions = new CoreWebView2EnvironmentOptions("--disable-gpu --disable-software-rasterizer");
-                var env = await CoreWebView2Environment.CreateAsync(null, null, envOptions);
-
-                await webView.EnsureCoreWebView2Async(env);
+                await webView.EnsureCoreWebView2Async(sharedEnv);
 
                 // Configure WebView2 to prevent interference
                 webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
@@ -276,8 +275,22 @@ namespace Launch_2
                         var app = apps.FirstOrDefault(a => a.Value.Path == path);
                         if (!app.Equals(default(KeyValuePair<string, AppInfo>)))
                         {
-                            app.Value.Position.X = Canvas.GetLeft(button);
-                            app.Value.Position.Y = Canvas.GetTop(button);
+                            if (snapToGrid)
+                            {
+                                double left = Canvas.GetLeft(button);
+                                double top = Canvas.GetTop(button);
+
+                                double snappedLeft = Math.Round(left / gridSizeX) * gridSizeX;
+                                double snappedTop = Math.Round(top / gridSizeY) * gridSizeY;
+
+                                app.Value.Position.X = snappedLeft;
+                                app.Value.Position.Y = snappedTop;
+                            }
+                            else
+                            {
+                                app.Value.Position.X = Canvas.GetLeft(button);
+                                app.Value.Position.Y = Canvas.GetTop(button);
+                            }
                         }
                     }
                 }
@@ -326,6 +339,14 @@ namespace Launch_2
             image.Stretch = Stretch.Uniform;
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
 
+            int radius = 8;
+            void UpdateClip()
+            {
+                image.Clip = new RectangleGeometry(new Rect(0, 0, image.ActualWidth, image.ActualHeight),radius, radius);
+            }
+            image.Loaded += (s, e) => UpdateClip();
+            image.SizeChanged += (s, e) => UpdateClip();
+
             StackPanel contentPanel = new StackPanel
             {
                 Orientation = Orientation.Vertical,
@@ -339,7 +360,6 @@ namespace Launch_2
             // This part is for handeling the stupid wpf border and bg thing DO NOT TOUCH IT!!
             var borderFactory = new FrameworkElementFactory(typeof(Border));
             borderFactory.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
-            borderFactory.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
 
             var contentPresenterFactory = new FrameworkElementFactory(typeof(ContentPresenter));
             contentPresenterFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
@@ -359,8 +379,22 @@ namespace Launch_2
             appButton.PreviewMouseLeftButtonDown += Button_MouseLeftButtonDown;
             appButton.PreviewMouseMove += Button_MouseMove;
             appButton.PreviewMouseLeftButtonUp += Button_MouseLeftButtonUp;
-            appButton.MouseEnter += Button_MouseEnter;
-            appButton.MouseLeave += Button_MouseLeave;
+
+            appButton.RenderTransformOrigin = new Point(0.5, 0.5);
+            appButton.RenderTransform = new ScaleTransform(1, 1);
+
+            appButton.MouseEnter += (s, e) =>
+            {
+                var anim = new DoubleAnimation(1.1, TimeSpan.FromMilliseconds(100));
+                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+            };
+            appButton.MouseLeave += (s, e) =>
+            {
+                var anim = new DoubleAnimation(1, TimeSpan.FromMilliseconds(100));
+                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+            };
 
 
         }
@@ -412,7 +446,6 @@ namespace Launch_2
             {
                 draggedElement.ReleaseMouseCapture();
 
-                WriteJson();
                 // right here yes
                 if (!isDragging)
                 {
@@ -460,6 +493,7 @@ namespace Launch_2
                 else if (isDragging && snapToGrid)
                 {
                     SnapToGrid(draggedElement);
+                    
                 }
                 Button btn = draggedElement as Button;
                 if (btn != null)
@@ -470,61 +504,9 @@ namespace Launch_2
                 }
                 isDragging = false;
                 draggedElement = null;
+
+                WriteJson();
             }
-        }
-
-        // THE  A N I M A T I O N
-        private void Button_MouseEnter(object sender, MouseEventArgs e)
-        {
-            Button btn = (Button)sender;
-            double originalWidth = btn.Width;
-            double originalLeft = Canvas.GetLeft(btn);
-            double originalTop = Canvas.GetTop(btn);
-
-            if (!btn.Resources.Contains("OriginalWidth"))
-                btn.Resources["OriginalWidth"] = originalWidth;
-            if (!btn.Resources.Contains("OriginalLeft"))
-                btn.Resources["OriginalLeft"] = originalLeft;
-            if (!btn.Resources.Contains("OriginalTop"))
-                btn.Resources["OriginalTop"] = originalTop;
-
-            double newWidth = originalWidth + 7;
-            double newLeft = originalLeft - (newWidth - originalWidth) / 2;
-            double newTop = originalTop - (newWidth - originalWidth) / 2;
-
-            AnimateButtonProperty(btn, Button.WidthProperty, newWidth, 0.1);
-            AnimateButtonProperty(btn, Canvas.LeftProperty, newLeft, 0.1);
-            AnimateButtonProperty(btn, Canvas.TopProperty, newTop, 0.1);
-        }
-
-        private void Button_MouseLeave(object sender, MouseEventArgs e)
-        {
-            Button btn = (Button)sender;
-            if (btn.Resources.Contains("OriginalWidth"))
-                btn.Width = (double)btn.Resources["OriginalWidth"];
-            if (btn.Resources.Contains("OriginalLeft"))
-            {
-                double originalWidth = (double)btn.Resources["OriginalWidth"];
-                double originalLeft = (double)btn.Resources["OriginalLeft"];
-                double originalTop = (double)btn.Resources["OriginalTop"];
-                AnimateButtonProperty(btn, Button.WidthProperty, originalWidth, 0.2);
-                AnimateButtonProperty(btn, Canvas.LeftProperty, originalLeft, 0.2);
-                AnimateButtonProperty(btn, Canvas.TopProperty, originalTop, 0.2);
-            }
-        }
-        private void AnimateButtonProperty(DependencyObject target, DependencyProperty property, double toValue, double durationSeconds)
-        {
-            var animation = new DoubleAnimation
-            {
-                To = toValue,
-                Duration = TimeSpan.FromSeconds(durationSeconds),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut }
-            };
-            Storyboard.SetTarget(animation, target);
-            Storyboard.SetTargetProperty(animation, new PropertyPath(property));
-            var storyboard = new Storyboard();
-            storyboard.Children.Add(animation);
-            storyboard.Begin();
         }
         // Well it's not really snapping to grid so we'll need to take a look at that
         private void SnapToGrid(UIElement element)
@@ -540,12 +522,20 @@ namespace Launch_2
         }
 
         // Stay on desktop Part
-        private void OnWindowLoaded(object sender, RoutedEventArgs e)
+        private async void OnWindowLoaded(object sender, RoutedEventArgs e)
         {
             IntPtr progman = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Progman", null);
             IntPtr shellViewWin = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
             SetParent(hwnd, shellViewWin);
+
+            if (sharedEnv == null)
+            {
+                // Use a shared, app-local user data folder
+                var userData = Path.Combine(MainFolder, "WebViewData");
+                var opts = new CoreWebView2EnvironmentOptions("--disable-gpu --disable-software-rasterizer");
+                sharedEnv = await CoreWebView2Environment.CreateAsync(null, userData, opts);
+            }
         }
 
         // now to the taskbar options
@@ -576,7 +566,9 @@ namespace Launch_2
         }
         private void SettingsChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(Properties.Settings.Default.ShowGrid))
+            if (e.PropertyName == nameof(Properties.Settings.Default.ShowGrid) ||
+                e.PropertyName == nameof(Properties.Settings.Default.GridSizeX) ||
+                e.PropertyName == nameof(Properties.Settings.Default.GridSizeY))
             {
                 Refresh_Page(); // re-draw whenever ShowGrid changes
             }
@@ -619,7 +611,10 @@ namespace Launch_2
             double width = MainCanvas.ActualWidth;
             double height = MainCanvas.ActualHeight;
 
-            for (double x = 0; x < width; x += gridSizeX)
+            double gridX = Math.Max(1, Properties.Settings.Default.GridSizeX);
+            double gridY = Math.Max(1, Properties.Settings.Default.GridSizeY);
+
+            for (double x = 0; x < width; x += gridX)
             {
                 Line verticalLine = new Line
                 {
@@ -629,13 +624,12 @@ namespace Launch_2
                     Y2 = height,
                     Stroke = Brushes.Blue,
                     StrokeThickness = 1,
-                    Opacity = 1,
                     IsHitTestVisible = false
                 };
                 MainCanvas.Children.Add(verticalLine);
             }
 
-            for (double y = 0; y < height; y += gridSizeY)
+            for (double y = 0; y < height; y += gridY)
             {
                 Line horizontalLine = new Line
                 {
@@ -645,7 +639,6 @@ namespace Launch_2
                     Y2 = y,
                     Stroke = Brushes.Blue,
                     StrokeThickness = 1,
-                    Opacity = 1,
                     IsHitTestVisible = false
                 };
                 MainCanvas.Children.Add(horizontalLine);
