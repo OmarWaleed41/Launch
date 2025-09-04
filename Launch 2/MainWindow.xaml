@@ -10,16 +10,21 @@
         AllowsTransparency="True"
         Background="Transparent"
         Topmost="False">
-    <Canvas x:Name="MainCanvas" Background="Transparent">
-        <tb:TaskbarIcon x:Name="MyNotifyIcon"
-                        IconSource="pack://application:,,,/src/imgs/gui.ico"
-                        ToolTipText="Launch_2">
-            <tb:TaskbarIcon.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Header="Settings" Click="Settings_Click"/>
-                    <MenuItem Header="Exit" Click="Exit_Click"/>
-                </ContextMenu>
-            </tb:TaskbarIcon.ContextMenu>
-        </tb:TaskbarIcon>
-    </Canvas>
+
+    <Grid>
+        <Canvas x:Name="GridCanvas" IsHitTestVisible="False"/>
+
+        <Canvas x:Name="MainCanvas" Background="Transparent">
+            <tb:TaskbarIcon x:Name="MyNotifyIcon"
+                            IconSource="pack://application:,,,/src/imgs/gui.ico"
+                            ToolTipText="Launch_2">
+                <tb:TaskbarIcon.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Settings" Click="Settings_Click"/>
+                        <MenuItem Header="Exit" Click="Exit_Click"/>
+                    </ContextMenu>
+                </tb:TaskbarIcon.ContextMenu>
+            </tb:TaskbarIcon>
+        </Canvas>
+    </Grid>
 </Window>

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -17,6 +17,7 @@ using System.DirectoryServices;
 using System.IO.Compression;
 using System.Windows.Shapes;
 using Path = System.IO.Path;
+using System.Reflection;
 
 
 // Well Welcome to my Humble little (it's not) project, so if you like great customization other apps don't offer (yes im talking to you rainmeter) you have come to the right place
@@ -43,6 +44,8 @@ namespace Launch_2
         private bool isDragging = false;
         private Point clickPosition;
         private UIElement draggedElement;
+
+        
 
         public bool snapToGrid;
         public bool showGrid;
@@ -80,6 +83,7 @@ namespace Launch_2
             this.Left = 0;
             this.Top = 0;
             MainCanvas.Margin = new Thickness(30);
+            GridCanvas.Margin = new Thickness(30);
         }
 
         private void ReadSettingsJson()
@@ -270,7 +274,9 @@ namespace Launch_2
                 {
                     if (element is Button button)
                     {
-                        string path = (string)button.Tag;
+                        var tag = (dynamic)button.Tag;
+                        //MessageBox.Show(tag.Name);
+                        string path = tag.Path;
 
                         var app = apps.FirstOrDefault(a => a.Value.Path == path);
                         if (!app.Equals(default(KeyValuePair<string, AppInfo>)))
@@ -318,7 +324,7 @@ namespace Launch_2
                 BorderBrush = Brushes.Transparent,
                 Padding = new Thickness(0),
                 FocusVisualStyle = null,
-                Tag = appPath
+                Tag = new { Name = appName, Path = appPath }
             };
 
             Image image = new Image();
@@ -379,6 +385,8 @@ namespace Launch_2
             appButton.PreviewMouseLeftButtonDown += Button_MouseLeftButtonDown;
             appButton.PreviewMouseMove += Button_MouseMove;
             appButton.PreviewMouseLeftButtonUp += Button_MouseLeftButtonUp;
+
+            appButton.MouseRightButtonDown += Button_Menu;
 
             appButton.RenderTransformOrigin = new Point(0.5, 0.5);
             appButton.RenderTransform = new ScaleTransform(1, 1);
@@ -449,7 +457,8 @@ namespace Launch_2
                 // right here yes
                 if (!isDragging)
                 {
-                    string fullCommand = (string)((Button)sender).Tag;
+                    var tag = (dynamic)((Button)sender).Tag;
+                    string fullCommand = tag.Path;
 
                     // Extract quoted path
                     string pattern = "^\"([^\"]+)\"\\s*(.*)";
@@ -508,7 +517,89 @@ namespace Launch_2
                 WriteJson();
             }
         }
-        // Well it's not really snapping to grid so we'll need to take a look at that
+
+        private void Button_Menu(object sender, EventArgs e)
+        {
+            Button btn = sender as Button;
+            var tag = (dynamic)((Button)sender).Tag;
+            string appname = tag.Name;
+
+            if (btn != null)
+            {
+                Style menuItemStyle = new Style(typeof(MenuItem));
+                menuItemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(34, 40, 49))));
+                menuItemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty, Brushes.White));
+                menuItemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty, new Thickness(10, 5, 10, 5)));
+                menuItemStyle.Setters.Add(new Setter(MenuItem.BorderThicknessProperty, new Thickness(0)));
+                menuItemStyle.Setters.Add(new Setter(MenuItem.IconProperty, null));
+
+                ControlTemplate template = new ControlTemplate(typeof(MenuItem));
+                FrameworkElementFactory border = new FrameworkElementFactory(typeof(Border));
+                border.Name = "Border";
+                border.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(34, 40, 49)));
+
+                FrameworkElementFactory content = new FrameworkElementFactory(typeof(ContentPresenter));
+                content.SetValue(ContentPresenter.ContentSourceProperty, "Header");
+                content.SetValue(ContentPresenter.MarginProperty, new Thickness(5, 2, 5, 2));
+                border.AppendChild(content);
+
+                template.VisualTree = border;
+
+                Trigger highlightTrigger = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
+                highlightTrigger.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(57, 62, 70)), "Border"));
+                template.Triggers.Add(highlightTrigger);
+
+                menuItemStyle.Setters.Add(new Setter(MenuItem.TemplateProperty, template));
+
+                ContextMenu contextMenu = new ContextMenu
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(34, 40, 49)),
+                    BorderBrush = Brushes.Transparent,
+                    Foreground = Brushes.White
+                };
+
+                MenuItem removeItem = new MenuItem
+                {
+                    Header = $"Remove {appname}",
+                    Style = menuItemStyle
+                };
+
+                removeItem.Click += (s, args) =>
+                {
+                    string json = File.ReadAllText(jsonFilePath);
+                    var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (apps.Remove(appname))
+                    {
+                        string updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions { WriteIndented = true });
+                        File.WriteAllText(jsonFilePath, updatedJson);
+
+                        string img = Path.Combine(imgPath, appname + ".png");
+
+                        try
+                        {
+                            File.Delete(img);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("Failed to delete image: " + ex.Message);
+                        }
+                    }
+
+                    MainCanvas.Children.Remove(btn);
+                };
+
+                contextMenu.Items.Add(removeItem);
+
+                btn.ContextMenu = contextMenu;
+                contextMenu.IsOpen = true;
+            }
+        }
+
+
         private void SnapToGrid(UIElement element)
         {
             double left = Canvas.GetLeft(element);
@@ -566,15 +657,22 @@ namespace Launch_2
         }
         private void SettingsChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(Properties.Settings.Default.ShowGrid) ||
-                e.PropertyName == nameof(Properties.Settings.Default.GridSizeX) ||
-                e.PropertyName == nameof(Properties.Settings.Default.GridSizeY))
+            if (e.PropertyName == nameof(Properties.Settings.Default.ButtonSize))
             {
-                Refresh_Page(); // re-draw whenever ShowGrid changes
+                Refresh_Apps();
             }
             else if (e.PropertyName == nameof(Properties.Settings.Default.SnapToGrid))
             {
                 snapToGrid = Properties.Settings.Default.SnapToGrid;
+            }
+            else if (e.PropertyName == nameof(Properties.Settings.Default.ShowGrid))
+            {
+                UpdateGrid();
+            }
+            else if (e.PropertyName == nameof(Properties.Settings.Default.GridSizeX) ||
+                     e.PropertyName == nameof(Properties.Settings.Default.GridSizeY))
+            {
+                UpdateGrid();
             }
         }
         public void Refresh_Page()
@@ -608,7 +706,7 @@ namespace Launch_2
         }
         private void DrawGridLines()
         {
-            double width = MainCanvas.ActualWidth;
+            double width = MainCanvas.ActualWidth;   // use main canvas dimensions
             double height = MainCanvas.ActualHeight;
 
             double gridX = Math.Max(1, Properties.Settings.Default.GridSizeX);
@@ -626,7 +724,7 @@ namespace Launch_2
                     StrokeThickness = 1,
                     IsHitTestVisible = false
                 };
-                MainCanvas.Children.Add(verticalLine);
+                GridCanvas.Children.Add(verticalLine);
             }
 
             for (double y = 0; y < height; y += gridY)
@@ -641,7 +739,16 @@ namespace Launch_2
                     StrokeThickness = 1,
                     IsHitTestVisible = false
                 };
-                MainCanvas.Children.Add(horizontalLine);
+                GridCanvas.Children.Add(horizontalLine);
+            }
+        }
+        public void UpdateGrid()
+        {
+            GridCanvas.Children.Clear(); // remove all grid lines
+
+            if (Properties.Settings.Default.ShowGrid)
+            {
+                DrawGridLines();
             }
         }
     }

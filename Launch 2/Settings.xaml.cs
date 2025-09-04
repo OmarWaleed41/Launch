@@ -742,7 +742,7 @@ namespace Launch_2
             //MessageBox.Show(Convert.ToString(showGrid));
             Properties.Settings.Default.ShowGrid = showGrid;
             Properties.Settings.Default.Save();
-            _MainWindow.Refresh_Page();
+            _MainWindow.UpdateGrid();
         }
         private void Settings_SnapToGrid_Checked(object sender, RoutedEventArgs e)
         {
