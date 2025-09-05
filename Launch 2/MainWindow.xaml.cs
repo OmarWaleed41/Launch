@@ -641,7 +641,7 @@ namespace Launch_2
             {
                 if (action == "add")
                 {
-                    Refresh_Apps();
+                    //Refresh_Apps();
                 }
                 else if (action == "add_widget")
                 {
