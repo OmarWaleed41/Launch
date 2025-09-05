@@ -10,17 +10,35 @@ you can make your own widgets
 and also make custom looking App Buttons in Whatever style you want
 
 To Download use the releases
+The app will be installed in `appdata/Roaming`
 
 and for convenience create a shortcut of the exe and add it to the startup folder (*win + R* and type `shell:common startup`)
 
 
 The Project is still under devolopment so feel free to let me know if there are bugs or features that you want (constructive critisism i like indeed)
 
-If you want to make your own widget you need:
-* An IDE
-* Some knowledge of HTML/JS/CSS
-* Some Creativity
-
-But jokes aside, you want to make your normal widget(webpage) and just add 2 things that you'll find inside the clock and weather widget that came with the app, the draglayer div and drag.js as the first things in the page
-
-As of now i still didn't add the feature like adding a button however im working on it, for now just take your files, put them in the widget folder and add it to the `widget.json` and voila
+If you want to make your own widget:
+  you can use an AI to make an HTML widget for you, or you can do it yourself it's easy enough
+  just follow this template:
+    `<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <link rel="icon" type="image/x-icon" href="imgs/gui.ico">
+    <link rel="stylesheet" href="">
+    <script src="../setFont.js"></script>
+    </head>
+    <body>
+        <div id="dragLayer" style="
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 9999;
+            background: rgba(0,0,0,0);"></div>
+        <script src="drag.js"></script>
+        <div id="main">
+          //add whatever you wamt here either using js or manually add it
+        </div>
+        <script src=""></script>
+    </body>
+    </html>`
