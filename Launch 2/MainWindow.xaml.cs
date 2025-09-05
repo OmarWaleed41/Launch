@@ -276,7 +276,6 @@ namespace Launch_2
                     if (element is Button button)
                     {
                         var tag = (dynamic)button.Tag;
-                        //MessageBox.Show(tag.Name);
                         string path = tag.Path;
 
                         var app = apps.FirstOrDefault(a => a.Value.Path == path);
@@ -641,12 +640,10 @@ namespace Launch_2
             {
                 if (action == "add")
                 {
-                    //Refresh_Apps();
                 }
                 else if (action == "add_widget")
                 {
 
-                    Refresh_Page();
                 }
                 else if (action.StartsWith("remove:"))
                 {
@@ -679,7 +676,7 @@ namespace Launch_2
                 UpdateGrid();
             }
         }
-        public void Refresh_Page()
+        private void Refresh_Page(object sender, RoutedEventArgs e)
         {
             MainCanvas.Children.Clear();
             ReadPathJson();
@@ -771,7 +768,7 @@ namespace Launch_2
         }
         public void UpdateGrid()
         {
-            GridCanvas.Children.Clear(); // remove all grid lines
+            GridCanvas.Children.Clear();
 
             if (Properties.Settings.Default.ShowGrid)
             {
