@@ -19,26 +19,4 @@ The Project is still under devolopment so feel free to let me know if there are 
 
 If you want to make your own widget:
   you can use an AI to make an HTML widget for you, or you can do it yourself it's easy enough
-  just follow this template:
-    `<!DOCTYPE html>
-<html>
-<head>
-    <title></title>
-    <link rel="icon" type="image/x-icon" href="imgs/gui.ico">
-    <link rel="stylesheet" href="">
-    <script src="../setFont.js"></script>
-    </head>
-    <body>
-        <div id="dragLayer" style="
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            z-index: 9999;
-            background: rgba(0,0,0,0);"></div>
-        <script src="drag.js"></script>
-        <div id="main">
-          //add whatever you wamt here either using js or manually add it
-        </div>
-        <script src=""></script>
-    </body>
-    </html>`
+  just follow this template [Template](Launch 2/src/template.html)
