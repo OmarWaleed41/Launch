@@ -14,9 +14,15 @@ The app will be installed in `appdata/Roaming`
 
 and for convenience create a shortcut of the exe and add it to the startup folder (*win + R* and type `shell:common startup`)
 
+Quick Runthrough the app:
+  * when you launch it it will be running in the background and the settings are accessable via the taskbar menu
+  * inside you'll find options to add apps or widgets just follow along with it (below i'll explain how to add a widget after you create it or download it)
+  * the settings tab will auto update based on your inputs so it will render live
 
 The Project is still under devolopment so feel free to let me know if there are bugs or features that you want (constructive critisism i like indeed)
 
 If you want to make your own widget:
-  you can use an AI to make an HTML widget for you, or you can do it yourself it's easy enough
-  just follow this template [Template](https://github.com/OmarWaleed41/Launch-2/blob/master/Launch%202/src/template.html)
+  * you can use an AI to make an HTML widget for you, or you can do it yourself it's easy enough
+  * just follow this template [Template](https://github.com/OmarWaleed41/Launch-2/blob/master/Launch%202/src/template.html)
+  * after you're done you need to have your folder and html with the same name and then compress them to `.ZIP`
+  * then in the settings app you can find the browse widget button and just refrence the ZIP file and declare yourr desired size
