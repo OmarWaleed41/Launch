@@ -19,4 +19,4 @@ The Project is still under devolopment so feel free to let me know if there are 
 
 If you want to make your own widget:
   you can use an AI to make an HTML widget for you, or you can do it yourself it's easy enough
-  just follow this template [Template](Launch 2/src/template.html)
+  just follow this template [Template](https://github.com/OmarWaleed41/Launch-2/blob/master/Launch%202/src/template.html)
