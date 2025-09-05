@@ -625,34 +625,12 @@ namespace Launch_2
 
             settings_grid.Children.Add(new TextBlock
             {
-                Text = "Snap to Grid:",
-                FontSize = 16,
-                Margin = new Thickness(10),
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White"))
-            });
-            Grid.SetRow(settings_grid.Children[^1], 1);
-            Grid.SetColumn(settings_grid.Children[^1], 0);
-
-            Settings_SnapToGrid = new CheckBox
-            {
-                Margin = new Thickness(5),
-                VerticalAlignment = VerticalAlignment.Center,
-                HorizontalAlignment = HorizontalAlignment.Left
-            };
-            settings_grid.Children.Add(Settings_SnapToGrid);
-            Grid.SetRow(Settings_SnapToGrid, 1);
-            Grid.SetColumn(Settings_SnapToGrid, 1);
-            Settings_SnapToGrid.Checked += Settings_SnapToGrid_Checked;
-            Settings_SnapToGrid.Unchecked += Settings_SnapToGrid_Checked;
-
-            settings_grid.Children.Add(new TextBlock
-            {
                 Text = "Grid Size X:",
                 FontSize = 16,
                 Margin = new Thickness(10),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White"))
             });
-            Grid.SetRow(settings_grid.Children[^1], 2);
+            Grid.SetRow(settings_grid.Children[^1], 1);
             Grid.SetColumn(settings_grid.Children[^1], 0);
 
             Settings_GridSizeX = new TextBox
@@ -672,7 +650,7 @@ namespace Launch_2
                 Properties.Settings.Default.Save();
             };
             settings_grid.Children.Add(Settings_GridSizeX);
-            Grid.SetRow(Settings_GridSizeX, 2);
+            Grid.SetRow(Settings_GridSizeX, 1);
             Grid.SetColumn(Settings_GridSizeX, 1);
 
             settings_grid.Children.Add(new TextBlock
@@ -682,7 +660,7 @@ namespace Launch_2
                 Margin = new Thickness(10),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White"))
             });
-            Grid.SetRow(settings_grid.Children[^1], 3);
+            Grid.SetRow(settings_grid.Children[^1], 2);
             Grid.SetColumn(settings_grid.Children[^1], 0);
 
             Settings_GridSizeY = new TextBox
@@ -702,7 +680,7 @@ namespace Launch_2
                 Properties.Settings.Default.Save();
             };
             settings_grid.Children.Add(Settings_GridSizeY);
-            Grid.SetRow(Settings_GridSizeY, 3);
+            Grid.SetRow(Settings_GridSizeY, 2);
             Grid.SetColumn(Settings_GridSizeY, 1);
 
             settings_grid.Children.Add(new TextBlock
@@ -726,6 +704,28 @@ namespace Launch_2
             Grid.SetColumn(Settings_ShowGrid, 1);
             Settings_ShowGrid.Checked += Settings_ShowGrid_Checked;
             Settings_ShowGrid.Unchecked += Settings_ShowGrid_Checked;
+
+            settings_grid.Children.Add(new TextBlock
+            {
+                Text = "Snap to Grid:",
+                FontSize = 16,
+                Margin = new Thickness(10),
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White"))
+            });
+            Grid.SetRow(settings_grid.Children[^1], 3);
+            Grid.SetColumn(settings_grid.Children[^1], 0);
+
+            Settings_SnapToGrid = new CheckBox
+            {
+                Margin = new Thickness(5),
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            settings_grid.Children.Add(Settings_SnapToGrid);
+            Grid.SetRow(Settings_SnapToGrid, 3);
+            Grid.SetColumn(Settings_SnapToGrid, 1);
+            Settings_SnapToGrid.Checked += Settings_SnapToGrid_Checked;
+            Settings_SnapToGrid.Unchecked += Settings_SnapToGrid_Checked;
 
             container.Children.Add(settings_grid);
 
@@ -850,9 +850,7 @@ namespace Launch_2
                     MessageBox.Show("Failed to delete image: " + ex.Message);
                 }
 
-                UpdateRequested?.Invoke(this, "remove");
-                //SetStatus = "remove";
-                //this.DialogResult = true;
+                UpdateRequested?.Invoke(this, $"remove:{appName}:button");
             }
             Refresh_Apps(sender, e);
         }
@@ -878,9 +876,7 @@ namespace Launch_2
                 string updatedJson = JsonSerializer.Serialize(widgets, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(widgetJson, updatedJson);
 
-                UpdateRequested?.Invoke(this, "remove");
-                //SetStatus = "remove";
-                //this.DialogResult = true;
+                UpdateRequested?.Invoke(this, $"remove:{widgetName}:widget");
             }
             Refresh_Widgets(sender, e);
         }
@@ -920,9 +916,6 @@ namespace Launch_2
                 }
             }
 
-            //string rawText = File.ReadAllText(WidgetPath);
-            //MessageBox.Show(rawText);
-
             var widgets = JsonSerializer.Deserialize<Dictionary<string, Widget>>(File.ReadAllText(widgetJson));
             widgets[WidgetName] = new Widget
             {
@@ -936,9 +929,8 @@ namespace Launch_2
             string updatedWidgetJson = JsonSerializer.Serialize(widgets, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(widgetJson, updatedWidgetJson);
 
-
-            //DialogResult = true;
-            UpdateRequested?.Invoke(this, "add_widget");
+            //UpdateRequested?.Invoke(this, "add_widget");
+            _MainWindow.InitWebView(widgets[WidgetName], WidgetName);
             Refresh_Widgets(sender, e);
         }
         public void Refresh_Apps(object sender, RoutedEventArgs e)
@@ -966,5 +958,7 @@ namespace Launch_2
         {
             this.Close();
         }
+        
     }
+
 }

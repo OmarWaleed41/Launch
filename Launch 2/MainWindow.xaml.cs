@@ -149,7 +149,7 @@ namespace Launch_2
             }
         }
 
-        private async void InitWebView(Widget widget, string widgetName)
+        public async void InitWebView(Widget widget, string widgetName)
         {
             Debug.WriteLine($"Initializing widget: {widgetName}");
 
@@ -169,7 +169,8 @@ namespace Launch_2
                 BorderThickness = new Thickness(4),
                 Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)),
                 Cursor = Cursors.Hand,
-                Child = webView
+                Child = webView,
+                Tag = new { ChildType = "widget", Name = widgetName }
             };
 
             MainCanvas.Children.Add(container);
@@ -324,7 +325,7 @@ namespace Launch_2
                 BorderBrush = Brushes.Transparent,
                 Padding = new Thickness(0),
                 FocusVisualStyle = null,
-                Tag = new { Name = appName, Path = appPath }
+                Tag = new { ChildType = "button", Name = appName, Path = appPath }
             };
 
             Image image = new Image();
@@ -647,9 +648,15 @@ namespace Launch_2
 
                     Refresh_Page();
                 }
-                else if (action == "remove")
+                else if (action.StartsWith("remove:"))
                 {
-                    Refresh_Page();
+                    var parts = action.Split(':');
+                    if (parts.Length == 3)
+                    {
+                        string name = parts[1];
+                        string type = parts[2];
+                        RemoveByName(name, type);
+                    }
                 }
             };
 
@@ -665,12 +672,9 @@ namespace Launch_2
             {
                 snapToGrid = Properties.Settings.Default.SnapToGrid;
             }
-            else if (e.PropertyName == nameof(Properties.Settings.Default.ShowGrid))
-            {
-                UpdateGrid();
-            }
             else if (e.PropertyName == nameof(Properties.Settings.Default.GridSizeX) ||
-                     e.PropertyName == nameof(Properties.Settings.Default.GridSizeY))
+                     e.PropertyName == nameof(Properties.Settings.Default.GridSizeY) ||
+                     e.PropertyName == nameof(Properties.Settings.Default.ShowGrid))
             {
                 UpdateGrid();
             }
@@ -695,6 +699,29 @@ namespace Launch_2
             MainCanvas.Children.Clear();
             ReadWidgetJson();
         }
+        private void RemoveByName(string name, string type = null)
+        {
+            UIElement elementToRemove = null;
+
+            foreach (UIElement element in MainCanvas.Children)
+            {
+                if (element is FrameworkElement fe && fe.Tag != null)
+                {
+                    dynamic tag = fe.Tag;
+                    if (tag.Name == name && (type == null || tag.ChildType == type))
+                    {
+                        elementToRemove = element;
+                        break;
+                    }
+                }
+            }
+
+            if (elementToRemove != null)
+            {
+                MainCanvas.Children.Remove(elementToRemove);
+            }
+        }
+
         private void Open_Click(object sender, RoutedEventArgs e)
         {
             this.Show();
@@ -750,6 +777,8 @@ namespace Launch_2
             {
                 DrawGridLines();
             }
+            gridSizeX = Properties.Settings.Default.GridSizeX;
+            gridSizeY = Properties.Settings.Default.GridSizeY;
         }
     }
 
