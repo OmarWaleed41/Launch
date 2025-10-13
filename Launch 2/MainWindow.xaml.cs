@@ -37,15 +37,13 @@ namespace Launch_2
         string MainFolder;
         string settingsPath;
         string jsonFilePath;
-        string widgetPath;
+        public string widgetPath;
         string widgetsFolder;
         string imgPath;
         double button_size;
         private bool isDragging = false;
         private Point clickPosition;
         private UIElement draggedElement;
-
-        
 
         public bool snapToGrid;
         public bool showGrid;
@@ -137,10 +135,12 @@ namespace Launch_2
                 {
                     PropertyNameCaseInsensitive = true
                 });
-
                 foreach (var widget in widgets)
                 {
-                    InitWebView(widget.Value, widget.Key);
+                    if (widget.Value.Status)
+                    {
+                        InitWebView(widget.Value, widget.Key);
+                    }
                 }
             }
             catch (Exception ex)
@@ -210,6 +210,11 @@ namespace Launch_2
                             Canvas.SetLeft(container, left + dx);
                             Canvas.SetTop(container, top + dy);
                             UpdateWidgetPositions();
+                        }
+                        else if (msg.GetProperty("type").GetString() == "openBrowser")
+                        {
+                            string url = msg.GetProperty("url").ToString();
+                            OpenInBrowser(url);
                         }
                     }
                     catch
@@ -313,7 +318,7 @@ namespace Launch_2
             }
         }
         // Self Explanatory
-        private void CreateAppButton(string appName, string appPath, Point position)
+        public void CreateAppButton(string appName, string appPath, Point position)
         {
             Button appButton = new Button
             {
@@ -627,6 +632,7 @@ namespace Launch_2
                 var opts = new CoreWebView2EnvironmentOptions("--disable-gpu --disable-software-rasterizer");
                 sharedEnv = await CoreWebView2Environment.CreateAsync(null, userData, opts);
             }
+            
         }
 
         // now to the taskbar options
@@ -777,6 +783,22 @@ namespace Launch_2
             gridSizeX = Properties.Settings.Default.GridSizeX;
             gridSizeY = Properties.Settings.Default.GridSizeY;
         }
+        private void OpenInBrowser(string url)
+        {
+            try
+            {
+                // Opens in the user's default browser
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to open browser: " + ex.Message);
+            }
+        }
     }
 
     public class AppInfo
@@ -788,6 +810,7 @@ namespace Launch_2
     {
         public Size Size { get; set; }
         public Position Position { get; set; }
+        public bool Status { get; set; }
     }
     public class Size
     {
