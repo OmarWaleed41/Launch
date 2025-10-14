@@ -6,6 +6,8 @@
         xmlns:local="clr-namespace:Launch_2"
         mc:Ignorable="d"
         Title="Settings"
+        ShowInTaskbar="True"
+        Icon="pack://application:,,,/src/imgs/gui.ico"
         Height="600" Width="800"
         Style="{StaticResource CustomWindowStyle}"
         WindowStyle="None"
@@ -189,6 +191,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
     </Window.Resources>
     <Border BorderThickness="1" BorderBrush="Black">
         <Grid Background="#222831">
@@ -206,7 +209,7 @@
                 <ScrollViewer x:Name="scroll" Background="#393E46">
 
                     <Grid x:Name="main" Background="#393E46">
-
+                        
                     </Grid>
                 </ScrollViewer>
             </Border>

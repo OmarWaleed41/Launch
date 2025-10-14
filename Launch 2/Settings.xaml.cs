@@ -9,6 +9,7 @@ using Microsoft.Win32;
 using System.Windows.Media.Imaging;
 using System.Windows.Input;
 using System;
+using System.Windows.Controls.Primitives;
 
 namespace Launch_2
 {
@@ -29,6 +30,7 @@ namespace Launch_2
 
         bool snapToGrid;
         bool showGrid = false;
+        
 
         public string SetStatus { get; private set; }
         public string AppName { get; private set; }
@@ -68,6 +70,9 @@ namespace Launch_2
 
             InitializeComponent();
             ReadSettingsJson();
+
+            Loaded += (s, e) => apps_tab(s, e);
+            this.Icon = new BitmapImage(new Uri("pack://application:,,,/src/imgs/gui.ico", UriKind.Absolute));
         }
         private void ReadSettingsJson()
         {
@@ -344,7 +349,7 @@ namespace Launch_2
             // Add a new app section
             TextBlock addText = new TextBlock
             {
-                Text = "Add a New Widget:",
+                Text = "Add a New Widget",
                 FontSize = 16,
                 Margin = new Thickness(10),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White"))
@@ -465,8 +470,8 @@ namespace Launch_2
 
             TextBlock removeText = new TextBlock
             {
-                Text = "Remove Widgets:",
-                FontSize = 16,
+                Text = "Widgets Settings",
+                FontSize = 17,
                 Margin = new Thickness(10),
                 Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White"))
             };
@@ -512,12 +517,56 @@ namespace Launch_2
                 {
                     widgetsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
+                    bool isToggled = widget.Value.Status;
+
                     TextBlock Widget_Name = new TextBlock
                     {
                         Text = widget.Key,
                         FontSize = 16,
                         Margin = new Thickness(2,10,2,10),
                         Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("White"))
+                    };
+
+                    Button toggleButton = new Button
+                    {
+                        Content = isToggled ? "Enabled" : "Disabled",
+                        Width = 70,
+                        Margin = new Thickness(0, 5, 0, 5),
+                        Tag = widget.Key,
+                        Style = (Style)FindResource("RoundedButtonStyle")
+                    };
+                    toggleButton.Loaded += (s, e) =>
+                    {
+                        var btn = (Button)s;
+                        string key = (string)btn.Tag;
+
+                        btn.Background = widgets[key].Status
+                            ? new SolidColorBrush(Color.FromRgb(0, 255, 125))
+                            : new SolidColorBrush(Color.FromRgb(125, 125, 125));
+                    };
+                    toggleButton.Click += (s, e) =>
+                    {
+                        var btn = (Button)s;
+                        string key = (string)btn.Tag;
+
+                        widgets[key].Status = !widgets[key].Status;
+
+                        btn.Content = widgets[key].Status ? "Enabled" : "Disabled";
+
+                        btn.Background = widgets[key].Status
+                            ? new SolidColorBrush(Color.FromRgb(0, 255, 125))
+                            : new SolidColorBrush(Color.FromRgb(125, 125, 125));
+
+                        File.WriteAllText(_MainWindow.widgetPath, JsonSerializer.Serialize(widgets, new JsonSerializerOptions { WriteIndented = true }));
+
+                        if (!widgets[key].Status)
+                        {
+                            UpdateRequested?.Invoke(this, $"remove:{widget.Key}:widget");
+                        }
+                        else
+                        {
+                            _MainWindow.InitWebView(widgets[key], key);
+                        }
                     };
 
                     Button remove_button = new Button
@@ -535,6 +584,7 @@ namespace Launch_2
                         VerticalAlignment = VerticalAlignment.Center
                     };
                     contentPanel.Children.Add(Widget_Name);
+                    contentPanel.Children.Add(toggleButton);
                     contentPanel.Children.Add(remove_button);
 
 
@@ -789,7 +839,7 @@ namespace Launch_2
             AppPath = AppPathBox.Text.Trim();
             ImagePath = ImagePathBox.Text.Trim();
 
-                // Add App logic
+            // Add App logic
             string destImgPath = Path.Combine(imgPath, AppName + ".png");
             try
             {
@@ -812,9 +862,10 @@ namespace Launch_2
             };
             string updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(jsonFilePath, updatedJson);
-            
-            UpdateRequested?.Invoke(this, "add");
+
+            //UpdateRequested?.Invoke(this, "add");
             ////DialogResult = true;
+            _MainWindow.CreateAppButton(AppName, AppPath, new Point(position.X, position.Y));
             Refresh_Apps(sender, e);
         }
         public void Remove_Click(object sender, RoutedEventArgs e)
@@ -896,7 +947,6 @@ namespace Launch_2
                 MessageBox.Show("Please fill the widget name.");
                 return;
             }
-            //SetStatus = "add_widget";
             WidgetPath = WidgetNameBox.Text.Trim();
             WidgetName = Path.GetFileNameWithoutExtension(WidgetPath);
             WidgetWidth = WidgetSize_X_Box.Text.Trim();
@@ -924,11 +974,11 @@ namespace Launch_2
                     Width = Convert.ToDouble(WidgetWidth),
                     Height = Convert.ToDouble(WidgetHeight)
                 },
-                Position = new Position { X = 20, Y = 20 }
+                Position = new Position { X = 20, Y = 20 },
+                Status = true
             };
             string updatedWidgetJson = JsonSerializer.Serialize(widgets, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(widgetJson, updatedWidgetJson);
-
             //UpdateRequested?.Invoke(this, "add_widget");
             _MainWindow.InitWebView(widgets[WidgetName], WidgetName);
             Refresh_Widgets(sender, e);
@@ -958,7 +1008,6 @@ namespace Launch_2
         {
             this.Close();
         }
-        
     }
 
 }

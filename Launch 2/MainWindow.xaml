@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:tb="http://www.hardcodet.net/taskbar"
-        Title="My WPF App"
+        Title="Launch"
         Height="450"
         Width="800"
         WindowStyle="None"
@@ -17,7 +17,8 @@
         <Canvas x:Name="MainCanvas" Background="Transparent">
             <tb:TaskbarIcon x:Name="MyNotifyIcon"
                             IconSource="pack://application:,,,/src/imgs/gui.ico"
-                            ToolTipText="Launch_2">
+                            ToolTipText="Launch_2"
+                            TrayLeftMouseUp="Settings_Click">
                 <tb:TaskbarIcon.ContextMenu>
                     <ContextMenu>
                         <MenuItem Header="Settings" Click="Settings_Click"/>
