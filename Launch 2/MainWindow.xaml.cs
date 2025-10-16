@@ -214,7 +214,7 @@ namespace Launch_2
                         else if (msg.GetProperty("type").GetString() == "openBrowser")
                         {
                             string url = msg.GetProperty("url").ToString();
-                            OpenInBrowser(url);
+                            StartLaunching(url, "");
                         }
                     }
                     catch
@@ -474,34 +474,11 @@ namespace Launch_2
                         string exePath = match.Groups[1].Value;
                         string arguments = match.Groups[2].Value;
 
-                        try
-                        {
-                            Process.Start(new ProcessStartInfo
-                            {
-                                FileName = exePath,
-                                Arguments = arguments,
-                                UseShellExecute = true
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Error launching application: {ex.Message}");
-                        }
+                        StartLaunching(exePath, arguments);
                     }
                     else
                     {
-                        try
-                        {
-                            Process.Start(new ProcessStartInfo
-                            {
-                                FileName = fullCommand,
-                                UseShellExecute = true
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show($"Error launching application: {ex.Message}");
-                        }
+                        StartLaunching(fullCommand, "");
                     }
                 }
                 else if (isDragging && snapToGrid)
@@ -783,7 +760,7 @@ namespace Launch_2
             gridSizeX = Properties.Settings.Default.GridSizeX;
             gridSizeY = Properties.Settings.Default.GridSizeY;
         }
-        private void OpenInBrowser(string url)
+        private void StartLaunching(string url, string args)
         {
             try
             {
@@ -791,6 +768,7 @@ namespace Launch_2
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = url,
+                    Arguments = args,
                     UseShellExecute = true
                 });
             }
