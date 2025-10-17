@@ -1,4 +1,4 @@
-﻿<Window x:Class="Launch_2.MainWindow"
+﻿<Window x:Class="Launch.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
@@ -17,7 +17,7 @@
         <Canvas x:Name="MainCanvas" Background="Transparent">
             <tb:TaskbarIcon x:Name="MyNotifyIcon"
                             IconSource="pack://application:,,,/src/imgs/gui.ico"
-                            ToolTipText="Launch_2"
+                            ToolTipText="Launch"
                             TrayLeftMouseUp="Settings_Click">
                 <tb:TaskbarIcon.ContextMenu>
                     <ContextMenu>

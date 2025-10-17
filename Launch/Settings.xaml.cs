@@ -11,7 +11,7 @@ using System.Windows.Input;
 using System;
 using System.Windows.Controls.Primitives;
 
-namespace Launch_2
+namespace Launch
 {
     public partial class Settings : Window
     {

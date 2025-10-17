@@ -1,0 +1,24 @@
+{
+    "clock": {
+        "Size": {
+            "Width": 300,
+            "Height": 300
+        },
+        "Position": {
+            "X": 674,
+            "Y": 315
+        },
+        "Status": true
+    },
+    "weather": {
+        "Size": {
+            "Width": 150,
+            "Height": 125
+        },
+        "Position": {
+            "X": 735,
+            "Y": 552
+        },
+        "Status": true
+    }
+}

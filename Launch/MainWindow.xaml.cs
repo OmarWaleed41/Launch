@@ -22,7 +22,7 @@ using System.Reflection;
 
 // Well Welcome to my Humble little (it's not) project, so if you like great customization other apps don't offer (yes im talking to you rainmeter) you have come to the right place
 
-namespace Launch_2
+namespace Launch
 {
     public partial class MainWindow : Window
     {

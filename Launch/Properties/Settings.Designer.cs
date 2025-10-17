@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace Launch_2.Properties {
+namespace Launch.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]

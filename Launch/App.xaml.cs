@@ -2,7 +2,7 @@
 using System.Data;
 using System.Windows;
 
-namespace Launch_2
+namespace Launch
 {
     /// <summary>
     /// Interaction logic for App.xaml
