@@ -1,4 +1,4 @@
-# Launch 2
+# Launch
 
 `You need to Hide the desktop icons for the App to work`
 
@@ -17,8 +17,9 @@ The app will be installed in `appdata/Roaming`
 and for convenience create a shortcut of the exe and add it to the startup folder (*win + R* and type `shell:common startup`)
 
 Quick Runthrough the app:
-  * when you launch it it will be running in the background and the settings are accessable via the taskbar menu
+  * when you launch it it will be running in the background and the settings are accessable via the taskbar menu either you click it once or right click
   * inside you'll find options to add apps or widgets just follow along with it (below i'll explain how to add a widget after you create it or download it)
+  * one great feature is instead of adding an app path you can add a url and an icon and it will open a browser window and open said url
   * the settings tab will auto update based on your inputs so it will render live
 
 The Project is still under devolopment so feel free to let me know if there are bugs or features that you want (constructive critisism i like indeed)
