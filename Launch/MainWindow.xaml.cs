@@ -89,6 +89,11 @@ namespace Launch
             Properties.Settings.Default.PropertyChanged += OnSettingsChanged;
 
             InitializeComponent();
+
+            // Ensure canvas doesn't clip content
+            MainCanvas.ClipToBounds = false;
+            GridCanvas.ClipToBounds = false;
+
             LoadSettings();
             LoadApplications();
             LoadWidgets();
@@ -99,12 +104,28 @@ namespace Launch
 
         private void ConfigureWindowSize()
         {
-            Width = SystemParameters.PrimaryScreenWidth;
-            Height = SystemParameters.PrimaryScreenHeight - TaskbarHeight;
-            Left = 0;
-            Top = 0;
-            MainCanvas.Margin = new Thickness(CanvasPadding);
-            GridCanvas.Margin = new Thickness(CanvasPadding);
+            // Get the virtual screen bounds (all monitors combined)
+            double virtualScreenLeft = SystemParameters.VirtualScreenLeft;
+            double virtualScreenTop = SystemParameters.VirtualScreenTop;
+            double virtualScreenWidth = SystemParameters.VirtualScreenWidth;
+            double virtualScreenHeight = SystemParameters.VirtualScreenHeight;
+
+            Debug.WriteLine($"Virtual Screen - Left: {virtualScreenLeft}, Top: {virtualScreenTop}, Width: {virtualScreenWidth}, Height: {virtualScreenHeight}");
+
+            // Set window to cover all monitors
+            Left = virtualScreenLeft;
+            Top = virtualScreenTop;
+            Width = virtualScreenWidth;
+            Height = virtualScreenHeight;
+
+            MainCanvas.Margin = new Thickness(0);
+            GridCanvas.Margin = new Thickness(0);
+
+            // Ensure canvas covers the entire area
+            MainCanvas.Width = virtualScreenWidth;
+            MainCanvas.Height = virtualScreenHeight;
+            GridCanvas.Width = virtualScreenWidth;
+            GridCanvas.Height = virtualScreenHeight;
         }
 
         private void LoadSettings()
@@ -186,6 +207,10 @@ namespace Launch
         {
             double left = Canvas.GetLeft(element);
             double top = Canvas.GetTop(element);
+
+            // Handle NaN values
+            if (double.IsNaN(left)) left = 0;
+            if (double.IsNaN(top)) top = 0;
 
             if (_snapToGrid)
             {
@@ -369,13 +394,24 @@ namespace Launch
 
                 foreach (UIElement element in MainCanvas.Children)
                 {
-                    if (element is Border container && container.Child is WebView2)
+                    if (element is Border container && container.Child is WebView2 && container.Tag != null)
                     {
-                        var widget = FindWidgetBySize(widgets, container);
-                        if (widget.HasValue)
+                        dynamic tag = container.Tag;
+                        string widgetName = tag.Name;
+
+                        if (widgets.ContainsKey(widgetName))
                         {
-                            widget.Value.Value.Position.X = Canvas.GetLeft(container);
-                            widget.Value.Value.Position.Y = Canvas.GetTop(container);
+                            double left = Canvas.GetLeft(container);
+                            double top = Canvas.GetTop(container);
+
+                            // Handle NaN values
+                            if (double.IsNaN(left)) left = 0;
+                            if (double.IsNaN(top)) top = 0;
+
+                            widgets[widgetName].Position.X = left;
+                            widgets[widgetName].Position.Y = top;
+
+                            Debug.WriteLine($"Saved widget {widgetName} at ({left}, {top})");
                         }
                     }
                 }
@@ -588,8 +624,17 @@ namespace Launch
 
         private void MoveElement(UIElement element, Vector offset)
         {
-            double newLeft = Canvas.GetLeft(element) + offset.X;
-            double newTop = Canvas.GetTop(element) + offset.Y;
+            double currentLeft = Canvas.GetLeft(element);
+            double currentTop = Canvas.GetTop(element);
+
+            // Handle NaN values (elements that haven't been positioned yet)
+            if (double.IsNaN(currentLeft)) currentLeft = 0;
+            if (double.IsNaN(currentTop)) currentTop = 0;
+
+            double newLeft = currentLeft + offset.X;
+            double newTop = currentTop + offset.Y;
+
+            Debug.WriteLine($"Moving element - Current: ({currentLeft}, {currentTop}), New: ({newLeft}, {newTop})");
 
             Canvas.SetLeft(element, newLeft);
             Canvas.SetTop(element, newTop);
@@ -776,6 +821,10 @@ namespace Launch
             double left = Canvas.GetLeft(element);
             double top = Canvas.GetTop(element);
 
+            // Handle NaN values
+            if (double.IsNaN(left)) left = 0;
+            if (double.IsNaN(top)) top = 0;
+
             double snappedLeft = Math.Round(left / _gridSizeX) * _gridSizeX;
             double snappedTop = Math.Round(top / _gridSizeY) * _gridSizeY;
 
@@ -850,10 +899,43 @@ namespace Launch
 
         private void AttachToDesktop()
         {
-            IntPtr progman = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Progman", null);
-            IntPtr shellViewWin = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
-            IntPtr hwnd = new WindowInteropHelper(this).Handle;
-            SetParent(hwnd, shellViewWin);
+            IntPtr progman = FindWindow("Progman", null);
+            IntPtr result = IntPtr.Zero;
+
+            // Send message to Progman to spawn a WorkerW window behind the desktop icons
+            SendMessage(progman, WM_SPAWN_WORKER, IntPtr.Zero, IntPtr.Zero);
+
+            // Find the WorkerW window that was created
+            IntPtr workerW = IntPtr.Zero;
+            EnumWindows((topHandle, topParamHandle) =>
+            {
+                IntPtr shelldll = FindWindowEx(topHandle, IntPtr.Zero, "SHELLDLL_DefView", null);
+
+                if (shelldll != IntPtr.Zero)
+                {
+                    // Get the next WorkerW window after the one containing SHELLDLL_DefView
+                    workerW = FindWindowEx(IntPtr.Zero, topHandle, "WorkerW", null);
+                }
+
+                return true;
+            }, IntPtr.Zero);
+
+            // If we found the WorkerW, attach our window to it
+            if (workerW != IntPtr.Zero)
+            {
+                IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                SetParent(hwnd, workerW);
+            }
+            else
+            {
+                // Fallback to the old method if the new method fails
+                IntPtr shellViewWin = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
+                if (shellViewWin != IntPtr.Zero)
+                {
+                    IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                    SetParent(hwnd, shellViewWin);
+                }
+            }
         }
 
         private async Task InitializeSharedWebViewEnvironment()
