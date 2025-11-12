@@ -10,92 +10,101 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
-using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
-using System.DirectoryServices;
-using System.IO.Compression;
 using System.Windows.Shapes;
 using Path = System.IO.Path;
-using System.Reflection;
-
-
-// Well Welcome to my Humble little (it's not) project, so if you like great customization other apps don't offer (yes im talking to you rainmeter) you have come to the right place
 
 namespace Launch
 {
     public partial class MainWindow : Window
     {
+        #region Win32 API Imports
         [DllImport("user32.dll", SetLastError = true)]
-        static extern IntPtr FindWindowEx(IntPtr parentHandle, IntPtr childAfter, string className, string windowTitle);
+        private static extern IntPtr FindWindowEx(IntPtr parentHandle, IntPtr childAfter, string className, string windowTitle);
 
         [DllImport("user32.dll", SetLastError = true)]
-        static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+        private static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+        #endregion
 
-        string Base = System.AppDomain.CurrentDomain.BaseDirectory;
-
-        string MainFolder;
-        string settingsPath;
-        string jsonFilePath;
-        public string widgetPath;
-        string widgetsFolder;
-        string imgPath;
-        double button_size;
-        private bool isDragging = false;
-        private Point clickPosition;
-        private UIElement draggedElement;
-
-        public bool snapToGrid;
-        public bool showGrid;
-
+        #region Constants
         private const double DragThreshold = 1;
-        private double gridSizeX;
-        private double gridSizeY;
-        private double CanvasPadding = 30;
+        private const double CanvasPadding = 30;
+        private const int ImageCornerRadius = 8;
+        private const double TaskbarHeight = 50;
+        #endregion
 
-        private static CoreWebView2Environment sharedEnv;
+        #region Fields - Paths
+        private readonly string _baseDirectory;
+        private readonly string _mainFolder;
+        private readonly string _settingsPath;
+        private readonly string _jsonFilePath;
+        private readonly string _widgetPath;
+        private readonly string _widgetsFolder;
+        private readonly string _imgPath;
+        #endregion
 
+        #region Fields - State
+        private double _buttonSize;
+        private bool _snapToGrid;
+        private bool _showGrid;
+        private double _gridSizeX;
+        private double _gridSizeY;
+
+        private bool _isDragging;
+        private Point _clickPosition;
+        private UIElement _draggedElement;
+
+        private static CoreWebView2Environment _sharedEnvironment;
+        #endregion
+
+        #region Constructor and Initialization
         public MainWindow()
         {
-            MainFolder = Path.Combine(Base, "src");
-            settingsPath = Path.Combine(MainFolder, "settings.json");
-            jsonFilePath = Path.Combine(MainFolder, "path.json");
-            widgetPath = Path.Combine(MainFolder, "widgets.json");
-            widgetsFolder = Path.Combine(MainFolder, "Widgets");
-            imgPath = Path.Combine(MainFolder, "imgs");
+            _baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            _mainFolder = Path.Combine(_baseDirectory, "src");
+            _settingsPath = Path.Combine(_mainFolder, "settings.json");
+            _jsonFilePath = Path.Combine(_mainFolder, "path.json");
+            _widgetPath = Path.Combine(_mainFolder, "widgets.json");
+            _widgetsFolder = Path.Combine(_mainFolder, "Widgets");
+            _imgPath = Path.Combine(_mainFolder, "imgs");
 
-            Properties.Settings.Default.PropertyChanged += SettingsChanged;
+            Properties.Settings.Default.PropertyChanged += OnSettingsChanged;
 
             InitializeComponent();
-            ReadSettingsJson();
-            ReadPathJson();
-            ReadWidgetJson();
-            SetWindowSize();
-   
+            LoadSettings();
+            LoadApplications();
+            LoadWidgets();
+            ConfigureWindowSize();
+
             Loaded += OnWindowLoaded;
         }
-        private void SetWindowSize()
+
+        private void ConfigureWindowSize()
         {
-            this.Width = SystemParameters.PrimaryScreenWidth;
-            this.Height = SystemParameters.PrimaryScreenHeight - 50;
-            this.Left = 0;
-            this.Top = 0;
-            MainCanvas.Margin = new Thickness(30);
-            GridCanvas.Margin = new Thickness(30);
+            Width = SystemParameters.PrimaryScreenWidth;
+            Height = SystemParameters.PrimaryScreenHeight - TaskbarHeight;
+            Left = 0;
+            Top = 0;
+            MainCanvas.Margin = new Thickness(CanvasPadding);
+            GridCanvas.Margin = new Thickness(CanvasPadding);
         }
 
-        private void ReadSettingsJson()
+        private void LoadSettings()
         {
-            button_size = Properties.Settings.Default.ButtonSize;
-            snapToGrid = Properties.Settings.Default.SnapToGrid;
-            gridSizeX = Properties.Settings.Default.GridSizeX;
-            gridSizeY = Properties.Settings.Default.GridSizeY;
-            showGrid = Properties.Settings.Default.ShowGrid;
+            _buttonSize = Properties.Settings.Default.ButtonSize;
+            _snapToGrid = Properties.Settings.Default.SnapToGrid;
+            _gridSizeX = Properties.Settings.Default.GridSizeX;
+            _gridSizeY = Properties.Settings.Default.GridSizeY;
+            _showGrid = Properties.Settings.Default.ShowGrid;
         }
+        #endregion
 
-        private void ReadPathJson()
+        #region Application Loading
+        private void LoadApplications()
         {
-            if (!File.Exists(jsonFilePath))
+            if (!File.Exists(_jsonFilePath))
             {
                 MessageBox.Show("JSON file not found!");
                 return;
@@ -103,15 +112,15 @@ namespace Launch
 
             try
             {
-                string json = File.ReadAllText(jsonFilePath);
-                var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var json = File.ReadAllText(_jsonFilePath);
+                var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (apps == null) return;
 
                 foreach (var app in apps)
                 {
-                    Debug.WriteLine(app.Key);
+                    Debug.WriteLine($"Loading app: {app.Key}");
                     CreateAppButton(app.Key, app.Value.Path, new Point(app.Value.Position.X, app.Value.Position.Y));
                 }
             }
@@ -120,9 +129,62 @@ namespace Launch
                 MessageBox.Show($"Error reading JSON: {ex.Message}");
             }
         }
-        private void ReadWidgetJson()
+
+        private void SaveApplicationPositions()
         {
-            if (!File.Exists(widgetPath))
+            try
+            {
+                var json = File.ReadAllText(_jsonFilePath);
+                var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (apps == null) return;
+
+                foreach (UIElement element in MainCanvas.Children)
+                {
+                    if (element is Button button && button.Tag != null)
+                    {
+                        dynamic tag = button.Tag;
+                        string path = tag.Path;
+                        var app = apps.FirstOrDefault(a => a.Value.Path == path);
+
+                        if (!app.Equals(default(KeyValuePair<string, AppInfo>)))
+                        {
+                            var (x, y) = GetElementPosition(button);
+                            app.Value.Position.X = x;
+                            app.Value.Position.Y = y;
+                        }
+                    }
+                }
+
+                var updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_jsonFilePath, updatedJson);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error writing JSON: {ex.Message}");
+            }
+        }
+
+        private (double X, double Y) GetElementPosition(UIElement element)
+        {
+            double left = Canvas.GetLeft(element);
+            double top = Canvas.GetTop(element);
+
+            if (_snapToGrid)
+            {
+                left = Math.Round(left / _gridSizeX) * _gridSizeX;
+                top = Math.Round(top / _gridSizeY) * _gridSizeY;
+            }
+
+            return (left, top);
+        }
+        #endregion
+
+        #region Widget Loading
+        private void LoadWidgets()
+        {
+            if (!File.Exists(_widgetPath))
             {
                 MessageBox.Show("Widgets JSON file not found!");
                 return;
@@ -130,11 +192,12 @@ namespace Launch
 
             try
             {
-                string json = File.ReadAllText(widgetPath);
-                var widgets = JsonSerializer.Deserialize<Dictionary<string, Widget>>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var json = File.ReadAllText(_widgetPath);
+                var widgets = JsonSerializer.Deserialize<Dictionary<string, Widget>>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (widgets == null) return;
+
                 foreach (var widget in widgets)
                 {
                     if (widget.Value.Status)
@@ -153,15 +216,30 @@ namespace Launch
         {
             Debug.WriteLine($"Initializing widget: {widgetName}");
 
-            var webView = new WebView2
+            var webView = CreateWebView(widget);
+            var container = CreateWidgetContainer(widget, widgetName, webView);
+
+            MainCanvas.Children.Add(container);
+            Canvas.SetLeft(container, widget.Position.X);
+            Canvas.SetTop(container, widget.Position.Y);
+
+            await ConfigureWebView(webView, widgetName, container);
+        }
+
+        private WebView2 CreateWebView(Widget widget)
+        {
+            return new WebView2
             {
                 Width = widget.Size.Width,
                 Height = widget.Size.Height,
                 DefaultBackgroundColor = System.Drawing.Color.Transparent,
                 IsHitTestVisible = false
             };
+        }
 
-            var container = new Border
+        private Border CreateWidgetContainer(Widget widget, string widgetName, WebView2 webView)
+        {
+            return new Border
             {
                 Width = widget.Size.Width,
                 Height = widget.Size.Height,
@@ -172,158 +250,159 @@ namespace Launch
                 Child = webView,
                 Tag = new { ChildType = "widget", Name = widgetName }
             };
+        }
 
-            MainCanvas.Children.Add(container);
-            Canvas.SetLeft(container, widget.Position.X);
-            Canvas.SetTop(container, widget.Position.Y);
-
-            // WebView2 initialization
+        private async Task ConfigureWebView(WebView2 webView, string widgetName, Border container)
+        {
             try
             {
-                await webView.EnsureCoreWebView2Async(sharedEnv);
+                await webView.EnsureCoreWebView2Async(_sharedEnvironment);
 
-                // Configure WebView2 to prevent interference
-                webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-                webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
-                webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
-
-                // Set up virtual host 
-                webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                    "app", MainFolder, CoreWebView2HostResourceAccessKind.Allow);
-
-                webView.CoreWebView2.Navigate($"http://app/Widgets/{widgetName}/{widgetName}.html");
-
-                webView.WebMessageReceived += (s, e) =>
-                {
-                    try
-                    {
-                        var msg = JsonSerializer.Deserialize<JsonElement>(e.WebMessageAsJson);
-                        if (msg.GetProperty("type").GetString() == "drag")
-                        {
-                            var dx = msg.GetProperty("dx").GetInt32();
-                            var dy = msg.GetProperty("dy").GetInt32();
-
-                            double left = Canvas.GetLeft(container);
-                            double top = Canvas.GetTop(container);
-
-                            Canvas.SetLeft(container, left + dx);
-                            Canvas.SetTop(container, top + dy);
-                            UpdateWidgetPositions();
-                        }
-                        else if (msg.GetProperty("type").GetString() == "openBrowser")
-                        {
-                            string url = msg.GetProperty("url").ToString();
-                            StartLaunching(url, "");
-                        }
-                    }
-                    catch
-                    {
-                        MessageBox.Show($"Error Loading From JS");
-                    }
-                };
+                ConfigureWebViewSettings(webView);
+                SetupVirtualHostMapping(webView);
+                NavigateToWidget(webView, widgetName);
+                AttachWebMessageHandler(webView, container);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"WebView2 initialization failed for {widgetName}: {ex.Message}");
             }
         }
-        private void UpdateWidgetPositions()
+
+        private void ConfigureWebViewSettings(WebView2 webView)
+        {
+            webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+            webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
+        }
+
+        private void SetupVirtualHostMapping(WebView2 webView)
+        {
+            webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                "app", _mainFolder, CoreWebView2HostResourceAccessKind.Allow);
+        }
+
+        private void NavigateToWidget(WebView2 webView, string widgetName)
+        {
+            webView.CoreWebView2.Navigate($"http://app/Widgets/{widgetName}/{widgetName}.html");
+        }
+
+        private void AttachWebMessageHandler(WebView2 webView, Border container)
+        {
+            webView.WebMessageReceived += (s, e) => HandleWebMessage(e, container);
+        }
+
+        private void HandleWebMessage(CoreWebView2WebMessageReceivedEventArgs e, Border container)
         {
             try
             {
-                string json = File.ReadAllText(widgetPath);
+                var message = JsonSerializer.Deserialize<JsonElement>(e.WebMessageAsJson);
+                var messageType = message.GetProperty("type").GetString();
+
+                switch (messageType)
+                {
+                    case "drag":
+                        HandleWidgetDrag(message, container);
+                        SaveWidgetPositions();
+                        break;
+                    case "drag_done":
+                        if (_snapToGrid)
+                        {
+                            SnapElementToGrid(container);
+                            SaveWidgetPositions();
+                        }
+                        break;
+                    case "openBrowser":
+                        HandleOpenBrowser(message);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error processing message from widget: {ex.Message}");
+            }
+        }
+
+        private void HandleWidgetDrag(JsonElement message, Border container)
+        {
+            var dx = message.GetProperty("dx").GetInt32();
+            var dy = message.GetProperty("dy").GetInt32();
+
+            double left = Canvas.GetLeft(container) + dx;
+            double top = Canvas.GetTop(container) + dy;
+
+            Canvas.SetLeft(container, left);
+            Canvas.SetTop(container, top);
+        }
+
+        private void HandleOpenBrowser(JsonElement message)
+        {
+            string url = message.GetProperty("url").GetString();
+            LaunchProcess(url, "");
+        }
+
+        private void SaveWidgetPositions()
+        {
+            try
+            {
+                var json = File.ReadAllText(_widgetPath);
                 var widgets = JsonSerializer.Deserialize<Dictionary<string, Widget>>(json);
+
+                if (widgets == null) return;
 
                 foreach (UIElement element in MainCanvas.Children)
                 {
-                    // Change Grid to Border here
-                    if (element is Border container && container.Child is WebView2 webView)
+                    if (element is Border container && container.Child is WebView2)
                     {
-                        // Find the widget by size
-                        var widget = widgets.FirstOrDefault(w =>
-                            Math.Abs(w.Value.Size.Width - container.Width) < 0.1 &&
-                            Math.Abs(w.Value.Size.Height - container.Height) < 0.1);
-
-                        if (!widget.Equals(default(KeyValuePair<string, Widget>)))
+                        var widget = FindWidgetBySize(widgets, container);
+                        if (widget.HasValue)
                         {
-                            // Update position
-                            widget.Value.Position.X = Canvas.GetLeft(container);
-                            widget.Value.Position.Y = Canvas.GetTop(container);
+                            widget.Value.Value.Position.X = Canvas.GetLeft(container);
+                            widget.Value.Value.Position.Y = Canvas.GetTop(container);
                         }
                     }
                 }
 
-                string updatedJson = JsonSerializer.Serialize(widgets, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-                File.WriteAllText(widgetPath, updatedJson);
+                var updatedJson = JsonSerializer.Serialize(widgets, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_widgetPath, updatedJson);
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error updating widget positions: {ex.Message}");
             }
         }
-        // Update the changegs you made while dragging etc.
-        private void WriteJson()
+
+        private KeyValuePair<string, Widget>? FindWidgetBySize(Dictionary<string, Widget> widgets, Border container)
         {
-            try
-            {
-                string json = File.ReadAllText(jsonFilePath);
-                var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                foreach (UIElement element in MainCanvas.Children)
-                {
-                    if (element is Button button)
-                    {
-                        var tag = (dynamic)button.Tag;
-                        string path = tag.Path;
-
-                        var app = apps.FirstOrDefault(a => a.Value.Path == path);
-                        if (!app.Equals(default(KeyValuePair<string, AppInfo>)))
-                        {
-                            if (snapToGrid)
-                            {
-                                double left = Canvas.GetLeft(button);
-                                double top = Canvas.GetTop(button);
-
-                                double snappedLeft = Math.Round(left / gridSizeX) * gridSizeX;
-                                double snappedTop = Math.Round(top / gridSizeY) * gridSizeY;
-
-                                app.Value.Position.X = snappedLeft;
-                                app.Value.Position.Y = snappedTop;
-                            }
-                            else
-                            {
-                                app.Value.Position.X = Canvas.GetLeft(button);
-                                app.Value.Position.Y = Canvas.GetTop(button);
-                            }
-                        }
-                    }
-                }
-
-                string updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
-                File.WriteAllText(jsonFilePath, updatedJson);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error writing JSON: {ex.Message}");
-            }
+            return widgets.FirstOrDefault(w =>
+                Math.Abs(w.Value.Size.Width - container.Width) < 0.1 &&
+                Math.Abs(w.Value.Size.Height - container.Height) < 0.1);
         }
-        // Self Explanatory
+        #endregion
+
+        #region App Button Creation
         public void CreateAppButton(string appName, string appPath, Point position)
         {
-            Button appButton = new Button
+            var button = CreateButton(appName, appPath);
+            var image = LoadAppImage(appName);
+            var contentPanel = CreateButtonContent(image);
+
+            button.Content = contentPanel;
+            ApplyButtonTemplate(button);
+            PositionButton(button, position);
+            AttachButtonEventHandlers(button);
+            ApplyButtonAnimations(button);
+
+            MainCanvas.Children.Add(button);
+        }
+
+        private Button CreateButton(string appName, string appPath)
+        {
+            return new Button
             {
                 Content = appName,
-                Width = button_size,
+                Width = _buttonSize,
                 Margin = new Thickness(5),
                 Background = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)),
                 BorderBrush = Brushes.Transparent,
@@ -331,46 +410,65 @@ namespace Launch
                 FocusVisualStyle = null,
                 Tag = new { ChildType = "button", Name = appName, Path = appPath }
             };
+        }
 
-            Image image = new Image();
+        private Image LoadAppImage(string appName)
+        {
+            var image = new Image
+            {
+                Stretch = Stretch.Uniform
+            };
+
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+
             try
             {
-                string img = Path.Combine(imgPath, $"{appName}.png");
-                BitmapImage bitmap = new BitmapImage();
+                var imagePath = Path.Combine(_imgPath, $"{appName}.png");
+                var bitmap = new BitmapImage();
                 bitmap.BeginInit();
-                bitmap.UriSource = new Uri(img, UriKind.Absolute);
+                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
                 image.Source = bitmap;
             }
-            catch
+            catch (Exception ex)
             {
-                // Put a case here or we are screwed if something went bad
+                Debug.WriteLine($"Failed to load image for {appName}: {ex.Message}");
             }
-            image.Stretch = Stretch.Uniform;
-            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
 
-            int radius = 8;
+            ApplyRoundedCorners(image);
+            return image;
+        }
+
+        private void ApplyRoundedCorners(Image image)
+        {
             void UpdateClip()
             {
-                image.Clip = new RectangleGeometry(new Rect(0, 0, image.ActualWidth, image.ActualHeight),radius, radius);
+                image.Clip = new RectangleGeometry(
+                    new Rect(0, 0, image.ActualWidth, image.ActualHeight),
+                    ImageCornerRadius, ImageCornerRadius);
             }
+
             image.Loaded += (s, e) => UpdateClip();
             image.SizeChanged += (s, e) => UpdateClip();
+        }
 
-            StackPanel contentPanel = new StackPanel
+        private StackPanel CreateButtonContent(Image image)
+        {
+            var panel = new StackPanel
             {
                 Orientation = Orientation.Vertical,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            contentPanel.Children.Add(image);
+            panel.Children.Add(image);
+            return panel;
+        }
 
-            appButton.Content = contentPanel;
-            appButton.OverridesDefaultStyle = true;
-
-            // This part is for handeling the stupid wpf border and bg thing DO NOT TOUCH IT!!
+        private void ApplyButtonTemplate(Button button)
+        {
             var borderFactory = new FrameworkElementFactory(typeof(Border));
-            borderFactory.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
+            borderFactory.SetBinding(Border.BackgroundProperty,
+                new Binding("Background") { RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent) });
 
             var contentPresenterFactory = new FrameworkElementFactory(typeof(ContentPresenter));
             contentPresenterFactory.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
@@ -378,308 +476,443 @@ namespace Launch
 
             borderFactory.AppendChild(contentPresenterFactory);
 
-            appButton.Template = new ControlTemplate(typeof(Button))
+            button.Template = new ControlTemplate(typeof(Button))
             {
                 VisualTree = borderFactory
             };
-            Canvas.SetLeft(appButton, position.X);
-            Canvas.SetTop(appButton, position.Y);
-            
-            MainCanvas.Children.Add(appButton);
+            button.OverridesDefaultStyle = true;
+        }
 
-            appButton.PreviewMouseLeftButtonDown += Button_MouseLeftButtonDown;
-            appButton.PreviewMouseMove += Button_MouseMove;
-            appButton.PreviewMouseLeftButtonUp += Button_MouseLeftButtonUp;
+        private void PositionButton(Button button, Point position)
+        {
+            Canvas.SetLeft(button, position.X);
+            Canvas.SetTop(button, position.Y);
+        }
 
-            appButton.MouseRightButtonDown += Button_Menu;
+        private void AttachButtonEventHandlers(Button button)
+        {
+            button.PreviewMouseLeftButtonDown += OnButtonMouseLeftButtonDown;
+            button.PreviewMouseMove += OnButtonMouseMove;
+            button.PreviewMouseLeftButtonUp += OnButtonMouseLeftButtonUp;
+            button.MouseRightButtonDown += OnButtonRightClick;
+        }
 
-            appButton.RenderTransformOrigin = new Point(0.5, 0.5);
-            appButton.RenderTransform = new ScaleTransform(1, 1);
+        private void ApplyButtonAnimations(Button button)
+        {
+            button.RenderTransformOrigin = new Point(0.5, 0.5);
+            button.RenderTransform = new ScaleTransform(1, 1);
 
-            appButton.MouseEnter += (s, e) =>
+            button.MouseEnter += (s, e) => AnimateButtonScale(button, 1.1);
+            button.MouseLeave += (s, e) => AnimateButtonScale(button, 1.0);
+        }
+
+        private void AnimateButtonScale(Button button, double scale)
+        {
+            var animation = new DoubleAnimation(scale, TimeSpan.FromMilliseconds(100));
+            var transform = (ScaleTransform)button.RenderTransform;
+            transform.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+            transform.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+        }
+        #endregion
+
+        #region Drag and Drop
+        private void OnButtonMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _draggedElement = sender as UIElement;
+            _clickPosition = e.GetPosition(MainCanvas);
+            _isDragging = false;
+            _draggedElement?.CaptureMouse();
+
+            ClearButtonAnimations(_draggedElement as Button);
+        }
+
+        private void OnButtonMouseMove(object sender, MouseEventArgs e)
+        {
+            if (_draggedElement == null || !_draggedElement.IsMouseCaptured)
+                return;
+
+            Point currentPosition = e.GetPosition(MainCanvas);
+            Vector diff = currentPosition - _clickPosition;
+
+            if (!_isDragging && (Math.Abs(diff.X) > DragThreshold || Math.Abs(diff.Y) > DragThreshold))
             {
-                var anim = new DoubleAnimation(1.1, TimeSpan.FromMilliseconds(100));
-                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+                _isDragging = true;
+            }
+
+            if (_isDragging)
+            {
+                MoveElement(_draggedElement, diff);
+                _clickPosition = currentPosition;
+            }
+        }
+
+        private void OnButtonMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_draggedElement == null || !_draggedElement.IsMouseCaptured)
+                return;
+
+            _draggedElement.ReleaseMouseCapture();
+
+            if (!_isDragging)
+            {
+                LaunchApplication(sender as Button);
+            }
+            else if (_snapToGrid)
+            {
+                SnapElementToGrid(_draggedElement);
+            }
+
+            StoreOriginalButtonProperties(_draggedElement as Button);
+
+            _isDragging = false;
+            _draggedElement = null;
+
+            SaveApplicationPositions();
+        }
+
+        private void MoveElement(UIElement element, Vector offset)
+        {
+            double newLeft = Canvas.GetLeft(element) + offset.X;
+            double newTop = Canvas.GetTop(element) + offset.Y;
+
+            Canvas.SetLeft(element, newLeft);
+            Canvas.SetTop(element, newTop);
+        }
+
+        private void ClearButtonAnimations(Button button)
+        {
+            if (button == null) return;
+
+            button.BeginAnimation(Button.WidthProperty, null);
+            button.BeginAnimation(Canvas.LeftProperty, null);
+            button.BeginAnimation(Canvas.TopProperty, null);
+        }
+
+        private void StoreOriginalButtonProperties(Button button)
+        {
+            if (button == null) return;
+
+            button.Resources["OriginalWidth"] = button.Width;
+            button.Resources["OriginalLeft"] = Canvas.GetLeft(button);
+            button.Resources["OriginalTop"] = Canvas.GetTop(button);
+        }
+
+        private void LaunchApplication(Button button)
+        {
+            if (button?.Tag == null) return;
+
+            dynamic tag = button.Tag;
+            string fullCommand = tag.Path;
+            var (exePath, arguments) = ParseCommandLine(fullCommand);
+            LaunchProcess(exePath, arguments);
+        }
+
+        private (string ExePath, string Arguments) ParseCommandLine(string fullCommand)
+        {
+            var pattern = "^\"([^\"]+)\"\\s*(.*)";
+            var match = Regex.Match(fullCommand, pattern);
+
+            if (match.Success)
+            {
+                return (match.Groups[1].Value, match.Groups[2].Value);
+            }
+
+            return (fullCommand, "");
+        }
+
+        private void LaunchProcess(string path, string arguments)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = path,
+                    Arguments = arguments,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to launch: {ex.Message}");
+            }
+        }
+        #endregion
+
+        #region Context Menu
+        private void OnButtonRightClick(object sender, EventArgs e)
+        {
+            if (sender is not Button button || button.Tag == null)
+                return;
+
+            dynamic tag = button.Tag;
+            string appName = tag.Name;
+            var contextMenu = CreateContextMenu(button, appName);
+            button.ContextMenu = contextMenu;
+            contextMenu.IsOpen = true;
+        }
+
+        private ContextMenu CreateContextMenu(Button button, string appName)
+        {
+            var contextMenu = new ContextMenu
+            {
+                Background = new SolidColorBrush(Color.FromRgb(34, 40, 49)),
+                BorderBrush = Brushes.Transparent,
+                Foreground = Brushes.White
             };
-            appButton.MouseLeave += (s, e) =>
+
+            var removeItem = CreateRemoveMenuItem(appName);
+            removeItem.Click += (s, args) => RemoveApplication(button, appName);
+            contextMenu.Items.Add(removeItem);
+
+            return contextMenu;
+        }
+
+        private MenuItem CreateRemoveMenuItem(string appName)
+        {
+            var menuItemStyle = CreateMenuItemStyle();
+            return new MenuItem
             {
-                var anim = new DoubleAnimation(1, TimeSpan.FromMilliseconds(100));
-                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-                ((ScaleTransform)appButton.RenderTransform).BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+                Header = $"Remove {appName}",
+                Style = menuItemStyle
             };
-
-
         }
 
-        private void Button_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private Style CreateMenuItemStyle()
         {
-            draggedElement = sender as UIElement;
-            clickPosition = e.GetPosition(MainCanvas);
-            isDragging = false;
-            draggedElement.CaptureMouse();
+            var style = new Style(typeof(MenuItem));
+            style.Setters.Add(new Setter(MenuItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(34, 40, 49))));
+            style.Setters.Add(new Setter(MenuItem.ForegroundProperty, Brushes.White));
+            style.Setters.Add(new Setter(MenuItem.PaddingProperty, new Thickness(10, 5, 10, 5)));
+            style.Setters.Add(new Setter(MenuItem.BorderThicknessProperty, new Thickness(0)));
 
-            Button btn = draggedElement as Button;
-            if (btn != null)
+            var template = CreateMenuItemTemplate();
+            style.Setters.Add(new Setter(MenuItem.TemplateProperty, template));
+
+            return style;
+        }
+
+        private ControlTemplate CreateMenuItemTemplate()
+        {
+            var template = new ControlTemplate(typeof(MenuItem));
+            var border = new FrameworkElementFactory(typeof(Border));
+            border.Name = "Border";
+            border.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(34, 40, 49)));
+
+            var content = new FrameworkElementFactory(typeof(ContentPresenter));
+            content.SetValue(ContentPresenter.ContentSourceProperty, "Header");
+            content.SetValue(ContentPresenter.MarginProperty, new Thickness(5, 2, 5, 2));
+            border.AppendChild(content);
+
+            template.VisualTree = border;
+
+            var highlightTrigger = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
+            highlightTrigger.Setters.Add(new Setter(Border.BackgroundProperty,
+                new SolidColorBrush(Color.FromRgb(57, 62, 70)), "Border"));
+            template.Triggers.Add(highlightTrigger);
+
+            return template;
+        }
+
+        private void RemoveApplication(Button button, string appName)
+        {
+            try
             {
-                btn.BeginAnimation(Button.WidthProperty, null);
-                btn.BeginAnimation(Canvas.LeftProperty, null);
-                btn.BeginAnimation(Canvas.TopProperty, null);
+                var json = File.ReadAllText(_jsonFilePath);
+                var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (apps != null && apps.Remove(appName))
+                {
+                    var updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(_jsonFilePath, updatedJson);
+
+                    DeleteAppImage(appName);
+                }
+
+                MainCanvas.Children.Remove(button);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error removing application: {ex.Message}");
             }
         }
 
-        private void Button_MouseMove(object sender, MouseEventArgs e)
+        private void DeleteAppImage(string appName)
         {
-            if (draggedElement != null && draggedElement.IsMouseCaptured)
+            try
             {
-                Point currentPosition = e.GetPosition(MainCanvas);
-                Vector diff = currentPosition - clickPosition;
-
-                if (!isDragging && (Math.Abs(diff.X) > DragThreshold || Math.Abs(diff.Y) > DragThreshold))
+                var imagePath = Path.Combine(_imgPath, $"{appName}.png");
+                if (File.Exists(imagePath))
                 {
-                    isDragging = true;
-                }
-
-                if (isDragging)
-                {
-                    double newLeft = Canvas.GetLeft(draggedElement) + diff.X;
-                    double newTop = Canvas.GetTop(draggedElement) + diff.Y;
-
-                    Canvas.SetLeft(draggedElement, newLeft);
-                    Canvas.SetTop(draggedElement, newTop);
-
-                    clickPosition = currentPosition;
+                    File.Delete(imagePath);
                 }
             }
-        }
-        // here we also handle the Launch event (it works best here)
-        private void Button_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (draggedElement != null && draggedElement.IsMouseCaptured)
+            catch (Exception ex)
             {
-                draggedElement.ReleaseMouseCapture();
-
-                // right here yes
-                if (!isDragging)
-                {
-                    var tag = (dynamic)((Button)sender).Tag;
-                    string fullCommand = tag.Path;
-
-                    // Extract quoted path
-                    string pattern = "^\"([^\"]+)\"\\s*(.*)";
-                    var match = System.Text.RegularExpressions.Regex.Match(fullCommand, pattern);
-
-                    if (match.Success)
-                    {
-                        string exePath = match.Groups[1].Value;
-                        string arguments = match.Groups[2].Value;
-
-                        StartLaunching(exePath, arguments);
-                    }
-                    else
-                    {
-                        StartLaunching(fullCommand, "");
-                    }
-                }
-                else if (isDragging && snapToGrid)
-                {
-                    SnapToGrid(draggedElement);
-                    
-                }
-                Button btn = draggedElement as Button;
-                if (btn != null)
-                {
-                    btn.Resources["OriginalWidth"] = btn.Width;
-                    btn.Resources["OriginalLeft"] = Canvas.GetLeft(btn);
-                    btn.Resources["OriginalTop"] = Canvas.GetTop(btn);
-                }
-                isDragging = false;
-                draggedElement = null;
-
-                WriteJson();
+                MessageBox.Show($"Failed to delete image: {ex.Message}");
             }
         }
+        #endregion
 
-        private void Button_Menu(object sender, EventArgs e)
-        {
-            Button btn = sender as Button;
-            var tag = (dynamic)((Button)sender).Tag;
-            string appname = tag.Name;
-
-            if (btn != null)
-            {
-                Style menuItemStyle = new Style(typeof(MenuItem));
-                menuItemStyle.Setters.Add(new Setter(MenuItem.BackgroundProperty, new SolidColorBrush(Color.FromRgb(34, 40, 49))));
-                menuItemStyle.Setters.Add(new Setter(MenuItem.ForegroundProperty, Brushes.White));
-                menuItemStyle.Setters.Add(new Setter(MenuItem.PaddingProperty, new Thickness(10, 5, 10, 5)));
-                menuItemStyle.Setters.Add(new Setter(MenuItem.BorderThicknessProperty, new Thickness(0)));
-                menuItemStyle.Setters.Add(new Setter(MenuItem.IconProperty, null));
-
-                ControlTemplate template = new ControlTemplate(typeof(MenuItem));
-                FrameworkElementFactory border = new FrameworkElementFactory(typeof(Border));
-                border.Name = "Border";
-                border.SetValue(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(34, 40, 49)));
-
-                FrameworkElementFactory content = new FrameworkElementFactory(typeof(ContentPresenter));
-                content.SetValue(ContentPresenter.ContentSourceProperty, "Header");
-                content.SetValue(ContentPresenter.MarginProperty, new Thickness(5, 2, 5, 2));
-                border.AppendChild(content);
-
-                template.VisualTree = border;
-
-                Trigger highlightTrigger = new Trigger { Property = MenuItem.IsHighlightedProperty, Value = true };
-                highlightTrigger.Setters.Add(new Setter(Border.BackgroundProperty, new SolidColorBrush(Color.FromRgb(57, 62, 70)), "Border"));
-                template.Triggers.Add(highlightTrigger);
-
-                menuItemStyle.Setters.Add(new Setter(MenuItem.TemplateProperty, template));
-
-                ContextMenu contextMenu = new ContextMenu
-                {
-                    Background = new SolidColorBrush(Color.FromRgb(34, 40, 49)),
-                    BorderBrush = Brushes.Transparent,
-                    Foreground = Brushes.White
-                };
-
-                MenuItem removeItem = new MenuItem
-                {
-                    Header = $"Remove {appname}",
-                    Style = menuItemStyle
-                };
-
-                removeItem.Click += (s, args) =>
-                {
-                    string json = File.ReadAllText(jsonFilePath);
-                    var apps = JsonSerializer.Deserialize<Dictionary<string, AppInfo>>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
-
-                    if (apps.Remove(appname))
-                    {
-                        string updatedJson = JsonSerializer.Serialize(apps, new JsonSerializerOptions { WriteIndented = true });
-                        File.WriteAllText(jsonFilePath, updatedJson);
-
-                        string img = Path.Combine(imgPath, appname + ".png");
-
-                        try
-                        {
-                            File.Delete(img);
-                        }
-                        catch (Exception ex)
-                        {
-                            MessageBox.Show("Failed to delete image: " + ex.Message);
-                        }
-                    }
-
-                    MainCanvas.Children.Remove(btn);
-                };
-
-                contextMenu.Items.Add(removeItem);
-
-                btn.ContextMenu = contextMenu;
-                contextMenu.IsOpen = true;
-            }
-        }
-
-
-        private void SnapToGrid(UIElement element)
+        #region Grid Management
+        private (double X, double Y) SnapElementToGrid(UIElement element)
         {
             double left = Canvas.GetLeft(element);
             double top = Canvas.GetTop(element);
 
-            double snappedLeft = Math.Round(left / gridSizeX) * gridSizeX;
-            double snappedTop = Math.Round(top / gridSizeY) * gridSizeY;
+            double snappedLeft = Math.Round(left / _gridSizeX) * _gridSizeX;
+            double snappedTop = Math.Round(top / _gridSizeY) * _gridSizeY;
 
             Canvas.SetLeft(element, snappedLeft);
             Canvas.SetTop(element, snappedTop);
+
+            return (snappedLeft, snappedTop);
         }
 
-        // Stay on desktop Part
+        private void DrawGridLines()
+        {
+            double width = MainCanvas.ActualWidth;
+            double height = MainCanvas.ActualHeight;
+
+            double gridX = Math.Max(1, Properties.Settings.Default.GridSizeX);
+            double gridY = Math.Max(1, Properties.Settings.Default.GridSizeY);
+
+            DrawVerticalGridLines(width, height, gridX);
+            DrawHorizontalGridLines(width, height, gridY);
+        }
+
+        private void DrawVerticalGridLines(double width, double height, double spacing)
+        {
+            for (double x = 0; x < width; x += spacing)
+            {
+                GridCanvas.Children.Add(CreateGridLine(x, 0, x, height));
+            }
+        }
+
+        private void DrawHorizontalGridLines(double width, double height, double spacing)
+        {
+            for (double y = 0; y < height; y += spacing)
+            {
+                GridCanvas.Children.Add(CreateGridLine(0, y, width, y));
+            }
+        }
+
+        private Line CreateGridLine(double x1, double y1, double x2, double y2)
+        {
+            return new Line
+            {
+                X1 = x1,
+                Y1 = y1,
+                X2 = x2,
+                Y2 = y2,
+                Stroke = Brushes.Blue,
+                StrokeThickness = 1,
+                IsHitTestVisible = false
+            };
+        }
+
+        public void UpdateGrid()
+        {
+            GridCanvas.Children.Clear();
+
+            if (Properties.Settings.Default.ShowGrid)
+            {
+                DrawGridLines();
+            }
+
+            _gridSizeX = Properties.Settings.Default.GridSizeX;
+            _gridSizeY = Properties.Settings.Default.GridSizeY;
+        }
+        #endregion
+
+        #region Window Events
         private async void OnWindowLoaded(object sender, RoutedEventArgs e)
+        {
+            AttachToDesktop();
+            await InitializeSharedWebViewEnvironment();
+        }
+
+        private void AttachToDesktop()
         {
             IntPtr progman = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Progman", null);
             IntPtr shellViewWin = FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
             IntPtr hwnd = new WindowInteropHelper(this).Handle;
             SetParent(hwnd, shellViewWin);
-
-            if (sharedEnv == null)
-            {
-                // Use a shared, app-local user data folder
-                var userData = Path.Combine(MainFolder, "WebViewData");
-                var opts = new CoreWebView2EnvironmentOptions("--disable-gpu --disable-software-rasterizer");
-                sharedEnv = await CoreWebView2Environment.CreateAsync(null, userData, opts);
-            }
-            
         }
 
-        // now to the taskbar options
+        private async Task InitializeSharedWebViewEnvironment()
+        {
+            if (_sharedEnvironment != null) return;
 
+            var userDataPath = Path.Combine(_mainFolder, "WebViewData");
+            var options = new CoreWebView2EnvironmentOptions("--disable-gpu --disable-software-rasterizer");
+            _sharedEnvironment = await CoreWebView2Environment.CreateAsync(null, userDataPath, options);
+        }
+        #endregion
+
+        #region Settings Events
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new Settings(this);
-            settingsWindow.Owner = this;
-
-            settingsWindow.UpdateRequested += (s, action) =>
+            var settingsWindow = new Settings(this)
             {
-                if (action == "add")
-                {
-                }
-                else if (action == "add_widget")
-                {
-
-                }
-                else if (action.StartsWith("remove:"))
-                {
-                    var parts = action.Split(':');
-                    if (parts.Length == 3)
-                    {
-                        string name = parts[1];
-                        string type = parts[2];
-                        RemoveByName(name, type);
-                    }
-                }
+                Owner = this
             };
 
-            settingsWindow.Show(); // NOT ShowDialog
+            settingsWindow.UpdateRequested += OnSettingsUpdateRequested;
+            settingsWindow.Show();
         }
-        private void SettingsChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+
+        private void OnSettingsUpdateRequested(object sender, string action)
         {
-            if (e.PropertyName == nameof(Properties.Settings.Default.ButtonSize))
+            if (action.StartsWith("remove:"))
             {
-                Refresh_Apps();
-            }
-            else if (e.PropertyName == nameof(Properties.Settings.Default.SnapToGrid))
-            {
-                snapToGrid = Properties.Settings.Default.SnapToGrid;
-            }
-            else if (e.PropertyName == nameof(Properties.Settings.Default.GridSizeX) ||
-                     e.PropertyName == nameof(Properties.Settings.Default.GridSizeY) ||
-                     e.PropertyName == nameof(Properties.Settings.Default.ShowGrid))
-            {
-                UpdateGrid();
+                var parts = action.Split(':');
+                if (parts.Length == 3)
+                {
+                    RemoveElementByName(parts[1], parts[2]);
+                }
             }
         }
+
+        private void OnSettingsChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(Properties.Settings.Default.ButtonSize):
+                    RefreshApplications();
+                    break;
+                case nameof(Properties.Settings.Default.SnapToGrid):
+                    _snapToGrid = Properties.Settings.Default.SnapToGrid;
+                    break;
+                case nameof(Properties.Settings.Default.GridSizeX):
+                case nameof(Properties.Settings.Default.GridSizeY):
+                case nameof(Properties.Settings.Default.ShowGrid):
+                    UpdateGrid();
+                    break;
+            }
+        }
+        #endregion
+
+        #region UI Actions
         private void Refresh_Page(object sender, RoutedEventArgs e)
         {
             MainCanvas.Children.Clear();
-            ReadPathJson();
-            ReadWidgetJson();
+            LoadApplications();
+            LoadWidgets();
+
             if (Properties.Settings.Default.ShowGrid)
             {
                 DrawGridLines();
             }
         }
-        private void Refresh_Apps()
+
+        private void RefreshApplications()
         {
             MainCanvas.Children.Clear();
-            ReadPathJson();
+            LoadApplications();
         }
-        private void Refresh_Widgets()
-        {
-            MainCanvas.Children.Clear();
-            ReadWidgetJson();
-        }
-        private void RemoveByName(string name, string type = null)
+
+        private void RemoveElementByName(string name, string type = null)
         {
             UIElement elementToRemove = null;
 
@@ -704,100 +937,41 @@ namespace Launch
 
         private void Open_Click(object sender, RoutedEventArgs e)
         {
-            this.Show();
-            this.WindowState = WindowState.Normal;
+            Show();
+            WindowState = WindowState.Normal;
         }
+
         private void Exit_Click(object sender, RoutedEventArgs e)
         {
             Application.Current.Shutdown();
         }
-        private void DrawGridLines()
-        {
-            double width = MainCanvas.ActualWidth;   // use main canvas dimensions
-            double height = MainCanvas.ActualHeight;
-
-            double gridX = Math.Max(1, Properties.Settings.Default.GridSizeX);
-            double gridY = Math.Max(1, Properties.Settings.Default.GridSizeY);
-
-            for (double x = 0; x < width; x += gridX)
-            {
-                Line verticalLine = new Line
-                {
-                    X1 = x,
-                    Y1 = 0,
-                    X2 = x,
-                    Y2 = height,
-                    Stroke = Brushes.Blue,
-                    StrokeThickness = 1,
-                    IsHitTestVisible = false
-                };
-                GridCanvas.Children.Add(verticalLine);
-            }
-
-            for (double y = 0; y < height; y += gridY)
-            {
-                Line horizontalLine = new Line
-                {
-                    X1 = 0,
-                    Y1 = y,
-                    X2 = width,
-                    Y2 = y,
-                    Stroke = Brushes.Blue,
-                    StrokeThickness = 1,
-                    IsHitTestVisible = false
-                };
-                GridCanvas.Children.Add(horizontalLine);
-            }
-        }
-        public void UpdateGrid()
-        {
-            GridCanvas.Children.Clear();
-
-            if (Properties.Settings.Default.ShowGrid)
-            {
-                DrawGridLines();
-            }
-            gridSizeX = Properties.Settings.Default.GridSizeX;
-            gridSizeY = Properties.Settings.Default.GridSizeY;
-        }
-        private void StartLaunching(string url, string args)
-        {
-            try
-            {
-                // Opens in the user's default browser
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = url,
-                    Arguments = args,
-                    UseShellExecute = true
-                });
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Failed to open browser: " + ex.Message);
-            }
-        }
+        #endregion
     }
 
+    #region Data Models
     public class AppInfo
     {
         public string Path { get; set; }
         public Position Position { get; set; }
     }
+
     public class Widget
     {
         public Size Size { get; set; }
         public Position Position { get; set; }
         public bool Status { get; set; }
     }
+
     public class Size
     {
         public double Width { get; set; }
         public double Height { get; set; }
     }
+
     public class Position
     {
         public double X { get; set; }
         public double Y { get; set; }
     }
+    #endregion
 }

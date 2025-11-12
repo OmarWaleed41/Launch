@@ -33,6 +33,7 @@ function onMouseUp() {
             console.error('Error opening URL:', error);
         }
     }
+    window.chrome.webview.postMessage({ type: 'drag_done' });
     isDragging = false;
     mouseMoved = false;
 
