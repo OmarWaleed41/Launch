@@ -35,11 +35,11 @@ You can make your own widget in HTML:
 3. In Launch settings, browse and import the ZIP file.
 4. Set your desired widget size.
 
-A sample widget template is available in the repo.
+A sample widget template is available in the repo through this link:[Template](https://github.com/OmarWaleed41/Launch-2/blob/master/Launch%202/src/template.html).
 
 ## Screenshots
 
-*(Optional: insert screenshots of the app UI here)*
+<img width="1678" height="997" alt="image" src="https://github.com/user-attachments/assets/a5e87e35-d7a3-4fd3-bfce-161e20ef5f8a" />
 
 ## Releases
 
@@ -53,7 +53,4 @@ Contributions, suggestions, and bug reports are welcome.
 2. Create a feature branch
 3. Submit a pull request
 
-## License
-
-*(Add license info here if you have one, e.g., MIT License)*
 
