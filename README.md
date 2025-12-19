@@ -35,7 +35,7 @@ You can make your own widget in HTML:
 3. In Launch settings, browse and import the ZIP file.
 4. Set your desired widget size.
 
-A sample widget template is available in the repo through this link:[Template](https://github.com/OmarWaleed41/Launch-2/blob/master/Launch%202/src/template.html).
+A sample widget template is available in the repo through this link: [Template](https://github.com/OmarWaleed41/Launch-2/blob/master/Launch%202/src/template.html).
 
 ## Screenshots
 
