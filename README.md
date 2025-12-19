@@ -1,31 +1,59 @@
 # Launch
 
-`You need to Hide the desktop icons for the App to work`
+**Launch** is a lightweight Windows desktop customization app that lets you add widgets, app shortcuts, and custom buttons in any style you want.
 
-<img width="1678" height="997" alt="image" src="https://github.com/user-attachments/assets/a5e87e35-d7a3-4fd3-bfce-161e20ef5f8a" />
+## Features
 
+- Run in background with system tray control
+- Add app shortcuts or widget buttons
+- Open URLs directly from custom buttons
+- Live updating settings panel
+- Supports custom HTML widgets via ZIP packages
 
-The Lightweight desktop customization app you are looking for
+## Installation
 
-wana spice things up your way?
-you can make your own widgets
-and also make custom looking App Buttons in Whatever style you want
+Download the latest release from the Releases section and run the installer.
 
-To Download use the releases
-The app will be installed in `appdata/Roaming`
+> The app installs to `%appdata%` by default.  
+> For convenience, create a shortcut and add it to your Windows **Startup** folder.
 
-and for convenience create a shortcut of the exe and add it to the startup folder (*win + R* and type `shell:common startup`)
+## Usage
 
-Quick Runthrough the app:
-  * when you launch it it will be running in the background and the settings are accessable via the taskbar menu either you click it once or right click
-  * inside you'll find options to add apps or widgets just follow along with it (below i'll explain how to add a widget after you create it or download it)
-  * one great feature is instead of adding an app path you can add a url and an icon and it will open a browser window and open said url
-  * the settings tab will auto update based on your inputs so it will render live
+1. Launch the app — it runs in the background.
+2. Access settings by clicking the system tray icon.
+3. In settings, you can:
+   - Add apps or widgets
+   - Add URLs with custom icons
+   - Adjust widget layout and properties
 
-The Project is still under devolopment so feel free to let me know if there are bugs or features that you want (constructive critisism i like indeed)
+## Creating Your Own Widget
 
-If you want to make your own widget:
-  * you can use an AI to make an HTML widget for you, or you can do it yourself it's easy enough
-  * just follow this template [Template](https://github.com/OmarWaleed41/Launch-2/blob/master/Launch%202/src/template.html)
-  * after you're done you need to have your folder and html with the same name and then compress them to `.ZIP`
-  * then in the settings app you can find the browse widget button and just refrence the ZIP file and declare yourr desired size
+You can make your own widget in HTML:
+
+1. Build a folder with your HTML, CSS, JS, assets, etc.
+2. Zip the folder.
+3. In Launch settings, browse and import the ZIP file.
+4. Set your desired widget size.
+
+A sample widget template is available in the repo.
+
+## Screenshots
+
+*(Optional: insert screenshots of the app UI here)*
+
+## Releases
+
+Check the **Releases** tab for downloadable builds.
+
+## Contributing
+
+Contributions, suggestions, and bug reports are welcome.
+
+1. Fork the repo
+2. Create a feature branch
+3. Submit a pull request
+
+## License
+
+*(Add license info here if you have one, e.g., MIT License)*
+
