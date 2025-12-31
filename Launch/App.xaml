@@ -81,5 +81,21 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        
+        <!--.......................................................................-->
+
+        <Style x:Key="CollidingButtonStyle" TargetType="Button">
+            <Setter Property="BorderBrush" Value="#E53935"/>
+            <Setter Property="BorderThickness" Value="3"/>
+            <Setter Property="Background" Value="#44E53935"/>
+            <Setter Property="Cursor" Value="No"/>
+            <!-- Add a drop shadow for extra visibility -->
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#E53935" BlurRadius="10" ShadowDepth="0" Opacity="0.8"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Application.Resources>
 </Application>

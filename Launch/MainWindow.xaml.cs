@@ -15,6 +15,8 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System.Windows.Shapes;
 using Path = System.IO.Path;
+using System.Collections;
+using System.Xml.Linq;
 
 namespace Launch
 {
@@ -39,9 +41,46 @@ namespace Launch
         [DllImport("user32.dll", CharSet = CharSet.Auto)]
         private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        private static extern bool SetProcessDPIAware();
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr GetWindowLong(IntPtr hWnd, int nIndex);
+
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+        private delegate bool MonitorEnumDelegate(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
 
         private const uint WM_SPAWN_WORKER = 0x052C;
+        private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_NOACTIVATE = 0x08000000;
+        private const int WS_EX_TOOLWINDOW = 0x00000080;
         #endregion
 
         #region Constants
@@ -69,7 +108,9 @@ namespace Launch
         private double _gridSizeY;
 
         private bool _isDragging;
+        private bool _isColliding;
         private Point _clickPosition;
+        private Point _senderPosition;
         private UIElement _draggedElement;
 
         private static CoreWebView2Environment _sharedEnvironment;
@@ -78,6 +119,9 @@ namespace Launch
         #region Constructor and Initialization
         public MainWindow()
         {
+            // TEMPORARY: Comment out DPI awareness to test
+            // SetProcessDPIAware();
+
             _baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
             _mainFolder = Path.Combine(_baseDirectory, "src");
             _settingsPath = Path.Combine(_mainFolder, "settings.json");
@@ -94,38 +138,107 @@ namespace Launch
             MainCanvas.ClipToBounds = false;
             GridCanvas.ClipToBounds = false;
 
+            // Set render options for better quality across DPI
+            RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
+            RenderOptions.SetEdgeMode(this, EdgeMode.Aliased);
+
             LoadSettings();
             LoadApplications();
             LoadWidgets();
             ConfigureWindowSize();
 
+            createFolder();
+
             Loaded += OnWindowLoaded;
+            SizeChanged += OnWindowSizeChanged;
         }
 
         private void ConfigureWindowSize()
         {
-            // Get the virtual screen bounds (all monitors combined)
-            double virtualScreenLeft = SystemParameters.VirtualScreenLeft;
-            double virtualScreenTop = SystemParameters.VirtualScreenTop;
-            double virtualScreenWidth = SystemParameters.VirtualScreenWidth;
-            double virtualScreenHeight = SystemParameters.VirtualScreenHeight;
+            // Use Win32 API to enumerate all monitors
+            int minX = int.MaxValue;
+            int minY = int.MaxValue;
+            int maxX = int.MinValue;
+            int maxY = int.MinValue;
 
-            Debug.WriteLine($"Virtual Screen - Left: {virtualScreenLeft}, Top: {virtualScreenTop}, Width: {virtualScreenWidth}, Height: {virtualScreenHeight}");
+            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero,
+                (IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData) =>
+                {
+                    MONITORINFO mi = new MONITORINFO();
+                    mi.cbSize = Marshal.SizeOf(mi);
 
-            // Set window to cover all monitors
-            Left = virtualScreenLeft;
-            Top = virtualScreenTop;
-            Width = virtualScreenWidth;
-            Height = virtualScreenHeight;
+                    if (GetMonitorInfo(hMonitor, ref mi))
+                    {
+                        var bounds = mi.rcMonitor;
+                        int width = bounds.Right - bounds.Left;
+                        int height = bounds.Bottom - bounds.Top;
+                        Debug.WriteLine($"Monitor: Left={bounds.Left}, Top={bounds.Top}, Right={bounds.Right}, Bottom={bounds.Bottom} (Size: {width}x{height})");
+
+                        minX = Math.Min(minX, bounds.Left);
+                        minY = Math.Min(minY, bounds.Top);
+                        maxX = Math.Max(maxX, bounds.Right);
+                        maxY = Math.Max(maxY, bounds.Bottom);
+
+                        Debug.WriteLine($"  Current bounds - minX={minX}, minY={minY}, maxX={maxX}, maxY={maxY}");
+                    }
+
+                    return true;
+                }, IntPtr.Zero);
+
+            double totalWidth = maxX - minX;
+            double totalHeight = maxY - minY;
+
+            Debug.WriteLine($"Final calculated bounds - Left: {minX}, Top: {minY}, Width: {totalWidth}, Height: {totalHeight}");
+            Debug.WriteLine($"  This covers from ({minX}, {minY}) to ({maxX}, {maxY})");
+
+            // Get DPI information
+            var source = PresentationSource.FromVisual(this);
+            double dpiScaleX = 1.0;
+            double dpiScaleY = 1.0;
+
+            if (source != null)
+            {
+                dpiScaleX = source.CompositionTarget.TransformToDevice.M11;
+                dpiScaleY = source.CompositionTarget.TransformToDevice.M22;
+                Debug.WriteLine($"DPI Scale - X: {dpiScaleX}, Y: {dpiScaleY}");
+            }
+
+            // Convert from physical pixels to WPF units
+            Left = minX / dpiScaleX;
+            Top = minY / dpiScaleY;
+            Width = totalWidth / dpiScaleX;
+            Height = totalHeight / dpiScaleY;
+
+            Debug.WriteLine($"Window positioned at: ({Left}, {Top}) with size: {Width}x{Height}");
 
             MainCanvas.Margin = new Thickness(0);
             GridCanvas.Margin = new Thickness(0);
 
             // Ensure canvas covers the entire area
-            MainCanvas.Width = virtualScreenWidth;
-            MainCanvas.Height = virtualScreenHeight;
-            GridCanvas.Width = virtualScreenWidth;
-            GridCanvas.Height = virtualScreenHeight;
+            MainCanvas.Width = Width;
+            MainCanvas.Height = Height;
+            GridCanvas.Width = Width;
+            GridCanvas.Height = Height;
+
+            Debug.WriteLine($"Canvas size set to: {MainCanvas.Width}x{MainCanvas.Height}");
+
+            // Force layout update
+            UpdateLayout();
+        }
+
+        private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Recalculate if window size changes (e.g., monitor config changes)
+            Debug.WriteLine($"Window size changed: {e.NewSize.Width}x{e.NewSize.Height}");
+            Debug.WriteLine($"Window actual position: Left={Left}, Top={Top}");
+            Debug.WriteLine($"Canvas ActualWidth: {MainCanvas.ActualWidth}, ActualHeight: {MainCanvas.ActualHeight}");
+
+            MainCanvas.Width = e.NewSize.Width;
+            MainCanvas.Height = e.NewSize.Height;
+            GridCanvas.Width = e.NewSize.Width;
+            GridCanvas.Height = e.NewSize.Height;
+            ConfigureWindowSize();
+            UpdateLayout();
         }
 
         private void LoadSettings()
@@ -572,6 +685,7 @@ namespace Launch
         {
             _draggedElement = sender as UIElement;
             _clickPosition = e.GetPosition(MainCanvas);
+            _senderPosition = new Point(Canvas.GetLeft((Button)sender), Canvas.GetTop((Button)sender));
             _isDragging = false;
             _draggedElement?.CaptureMouse();
 
@@ -583,18 +697,55 @@ namespace Launch
             if (_draggedElement == null || !_draggedElement.IsMouseCaptured)
                 return;
 
+            _isColliding = false;
+
             Point currentPosition = e.GetPosition(MainCanvas);
             Vector diff = currentPosition - _clickPosition;
 
             if (!_isDragging && (Math.Abs(diff.X) > DragThreshold || Math.Abs(diff.Y) > DragThreshold))
             {
                 _isDragging = true;
+                //Debug.WriteLine("Started dragging");
             }
 
             if (_isDragging)
             {
+                double oldLeft = Canvas.GetLeft(_draggedElement);
+                double oldTop = Canvas.GetTop(_draggedElement);
+                if (double.IsNaN(oldLeft)) oldLeft = 0;
+                if (double.IsNaN(oldTop)) oldTop = 0;
+
                 MoveElement(_draggedElement, diff);
                 _clickPosition = currentPosition;
+
+                double newLeft = Canvas.GetLeft(_draggedElement);
+                double newTop = Canvas.GetTop(_draggedElement);
+
+                // Check if we're in the problematic area
+                //if (newLeft > 1680 && newTop > 800)
+                //{
+                //    Debug.WriteLine($"⚠️ SECOND MONITOR AREA - Mouse: ({currentPosition.X:F0}, {currentPosition.Y:F0}), Element: ({newLeft:F0}, {newTop:F0})");
+                //    Debug.WriteLine($"   Canvas actual size: {MainCanvas.ActualWidth}x{MainCanvas.ActualHeight}");
+                //    Debug.WriteLine($"   Element visibility: {_draggedElement.Visibility}, IsVisible: {_draggedElement.IsVisible}");
+                //}
+                // Active-only collision check
+                var elements = MainCanvas.Children.OfType<FrameworkElement>();
+                FrameworkElement hit = CheckActiveCollision((FrameworkElement)sender, elements);
+
+                ClearCollisionVisuals(elements);
+
+                if (hit != null)
+                {
+                    _isColliding = true;
+
+                    MarkColliding((Button)sender, hit);
+
+                }
+
+                // Force immediate render to reduce glitching
+                _draggedElement.InvalidateVisual();
+
+                //Debug.WriteLine(_isColliding);
             }
         }
 
@@ -609,8 +760,38 @@ namespace Launch
             {
                 LaunchApplication(sender as Button);
             }
+            //else if(_isColliding)
+            //{
+                
+
+            //}
             else if (_snapToGrid)
             {
+                if (_isColliding)
+                {
+                    var elements = MainCanvas.Children.OfType<FrameworkElement>();
+                    FrameworkElement hit = CheckActiveCollision((FrameworkElement)sender, elements);
+
+                    foreach (FrameworkElement element in elements)
+                    {
+                        Debug.WriteLine($"{element.GetType().Name} | Name={element}");
+                    }
+
+
+                    var senderLeft = Canvas.GetLeft((Button)sender);
+                    var senderTop = Canvas.GetTop((Button)sender);
+                    var hitLeft = Canvas.GetLeft(hit);
+                    var hitTop = Canvas.GetTop(hit);
+
+                    Canvas.SetLeft((Button)sender, hitLeft);
+                    Canvas.SetTop((Button)sender, hitTop);
+                    Canvas.SetLeft(hit, _senderPosition.X);
+                    Canvas.SetTop(hit, _senderPosition.Y);
+
+
+                    ClearCollisionVisuals(elements);
+                }
+
                 SnapElementToGrid(_draggedElement);
             }
 
@@ -618,6 +799,7 @@ namespace Launch
 
             _isDragging = false;
             _draggedElement = null;
+            _isColliding = false;
 
             SaveApplicationPositions();
         }
@@ -634,7 +816,9 @@ namespace Launch
             double newLeft = currentLeft + offset.X;
             double newTop = currentTop + offset.Y;
 
-            Debug.WriteLine($"Moving element - Current: ({currentLeft}, {currentTop}), New: ({newLeft}, {newTop})");
+            // Snap to pixel boundaries to reduce sub-pixel rendering issues
+            newLeft = Math.Round(newLeft);
+            newTop = Math.Round(newTop);
 
             Canvas.SetLeft(element, newLeft);
             Canvas.SetTop(element, newTop);
@@ -697,6 +881,135 @@ namespace Launch
                 MessageBox.Show($"Failed to launch: {ex.Message}");
             }
         }
+
+        Rect getRect(FrameworkElement element)
+        {
+            double x = Canvas.GetLeft(element);
+            double y = Canvas.GetTop(element);
+
+            return new Rect(
+                x,
+                y,
+                element.ActualWidth,
+                element.ActualHeight
+            );
+        }
+        bool IsColliding(FrameworkElement a, FrameworkElement b)
+        {
+            return getRect(a).IntersectsWith(getRect(b));
+        }
+
+        private FrameworkElement CheckActiveCollision(
+            FrameworkElement activeElement,
+            IEnumerable<FrameworkElement> allElements)
+        {
+            Rect activeRect = getRect(activeElement);
+
+            foreach (var elem in allElements)
+            {
+                if (elem == activeElement)
+                    continue;
+
+                if (activeRect.IntersectsWith(getRect(elem)))
+                {
+                    if(elem is Control)
+                    {
+                        return elem;
+                    }
+                    else
+                    {
+                        //MessageBox.Show("Can't interact with that object");
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        void StoreOriginalControlVisuals(Control control)
+        {
+            if (!control.Resources.Contains("OriginalControlVisuals"))
+            {
+                control.Resources["OriginalControlVisuals"] = new
+                {
+                    control.BorderBrush,
+                    control.BorderThickness,
+                    control.Background
+                };
+            }
+        }
+        void StoreOriginalShapeVisuals(Shape shape)
+        {
+            if (!shape.Resources.Contains("OriginalShapeVisuals"))
+            {
+                shape.Resources["OriginalShapeVisuals"] = new
+                {
+                    shape.Stroke,
+                    shape.StrokeThickness
+                };
+            }
+        }
+
+        private void ApplyControlCollision(Control control)
+        {
+            StoreOriginalControlVisuals(control);
+
+            var red = new SolidColorBrush(Color.FromRgb(229, 57, 53));
+            var redTransparent = new SolidColorBrush(Color.FromArgb(68, 229, 57, 53));
+
+            control.BorderBrush = red;
+            control.BorderThickness = new Thickness(3);
+            control.Background = redTransparent;
+        }
+        private void ApplyShapeCollision(Shape shape)
+        {
+            StoreOriginalShapeVisuals(shape);
+
+            var red = new SolidColorBrush(Color.FromRgb(229, 57, 53));
+
+            shape.Stroke = red;
+            shape.StrokeThickness = 3;
+        }
+        private void ApplyCollisionVisuals(FrameworkElement element)
+        {
+            switch (element)
+            {
+                case Control control:
+                    ApplyControlCollision(control);
+                    break;
+                case Shape shape:
+                    ApplyShapeCollision(shape);
+                    break;
+            }
+        }
+
+        private void MarkColliding(FrameworkElement a, FrameworkElement b)
+        {
+            ApplyCollisionVisuals(a);
+            ApplyCollisionVisuals(b);
+        }
+
+        private void ClearCollisionVisuals(IEnumerable<FrameworkElement> Elements)
+        {
+            foreach (FrameworkElement element in Elements)
+            {
+                switch (element)
+                {
+                    case Control c when c.Resources.Contains("OriginalControlVisuals"):
+                        dynamic cv = c.Resources["OriginalControlVisuals"];
+                        c.BorderBrush = cv.BorderBrush;
+                        c.BorderThickness = cv.BorderThickness;
+                        c.Background = cv.Background;
+                        break;
+                    case Shape s when s.Resources.Contains("OriginalShapeVisuals"):
+                        dynamic sv = s.Resources["OriginalShapeVisuals"];
+                        s.Stroke = sv.Stroke;
+                        s.StrokeThickness = sv.StrokeThickness;
+                        break;
+                }
+            }
+        }
+
         #endregion
 
         #region Context Menu
@@ -1044,6 +1357,31 @@ namespace Launch
             Application.Current.Shutdown();
         }
         #endregion
+        Rect Folder()
+        {
+            double x = 100;
+            double y = 100;
+            return new Rect(
+                x,
+                y,
+                70,
+                70
+            );
+        }
+        private void createFolder()
+        {
+            Rect folder1 = Folder();
+            var actualFolder = new Rectangle
+            {
+                Width = folder1.Width,
+                Height = folder1.Height,
+                Fill = Brushes.Yellow,
+
+            };
+            Canvas.SetLeft(actualFolder, 100);
+            Canvas.SetTop(actualFolder, 100);
+            MainCanvas.Children.Add(actualFolder);
+        }
     }
 
     #region Data Models

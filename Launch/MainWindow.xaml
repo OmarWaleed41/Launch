@@ -10,10 +10,8 @@
         AllowsTransparency="True"
         Background="Transparent"
         Topmost="False">
-
     <Grid>
         <Canvas x:Name="GridCanvas" IsHitTestVisible="False"/>
-
         <Canvas x:Name="MainCanvas" Background="Transparent" ClipToBounds="False">
             <tb:TaskbarIcon x:Name="MyNotifyIcon"
                             IconSource="pack://application:,,,/src/imgs/gui.ico"
