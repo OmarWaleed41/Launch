@@ -277,7 +277,7 @@ namespace Launch
                 return;
 
             AddAppToJson(appName, appPath);
-            _mainWindow.CreateAppButton(appName, appPath, new Point(DefaultPosition, DefaultPosition));
+            _mainWindow.CreateAppButton(appName, appPath, new Point(DefaultPosition, DefaultPosition), String.Empty);
 
             apps_tab(sender, e);
         }
