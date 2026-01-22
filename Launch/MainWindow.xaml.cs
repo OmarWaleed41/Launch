@@ -19,6 +19,7 @@ using System.Collections;
 using System.Xml.Linq;
 using static System.Formats.Asn1.AsnWriter;
 using Microsoft.Win32;
+using System;
 
 namespace Launch
 {
@@ -120,15 +121,20 @@ namespace Launch
         private UIElement _draggedElement;
 
         private Dictionary<string, Folder> _folders = new Dictionary<string, Folder>();
+        private List<Button> _folderChildButtons = new List<Button>();
+
+        private List<FrameworkElement> _collisionCandidates = new List<FrameworkElement>();
+        private FrameworkElement _lastCollidedElement = null;
+        private const int CollisionCheckThrottle = 5;
+        private int _mouseMoveCounter = 0;
 
         private static CoreWebView2Environment _sharedEnvironment;
+
         #endregion
 
         #region Constructor and Initialization
         public MainWindow()
         {
-            // TEMPORARY: Comment out DPI awareness to test
-            // SetProcessDPIAware();
 
             _baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
             _mainFolder = Path.Combine(_baseDirectory, "src");
@@ -143,11 +149,9 @@ namespace Launch
 
             InitializeComponent();
 
-            // Ensure canvas doesn't clip content
             MainCanvas.ClipToBounds = false;
             GridCanvas.ClipToBounds = false;
 
-            // Set render options for better quality across DPI
             RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
             RenderOptions.SetEdgeMode(this, EdgeMode.Aliased);
 
@@ -212,7 +216,6 @@ namespace Launch
                 Debug.WriteLine($"DPI Scale - X: {dpiScaleX}, Y: {dpiScaleY}");
             }
 
-            // Convert from physical pixels to WPF units
             Left = minX / dpiScaleX;
             Top = minY / dpiScaleY;
             Width = totalWidth / dpiScaleX;
@@ -223,7 +226,6 @@ namespace Launch
             MainCanvas.Margin = new Thickness(0);
             GridCanvas.Margin = new Thickness(0);
 
-            // Ensure canvas covers the entire area
             MainCanvas.Width = Width;
             MainCanvas.Height = Height;
             GridCanvas.Width = Width;
@@ -231,7 +233,6 @@ namespace Launch
 
             Debug.WriteLine($"Canvas size set to: {MainCanvas.Width}x{MainCanvas.Height}");
 
-            // Force layout update
             UpdateLayout();
         }
 
@@ -580,9 +581,16 @@ namespace Launch
                     {
                         CreateFolder(folder.ID, folder.Position);
 
-                        foreach (var appName in folder.ContainedApps)
+                        Grid folderGrid = null;
+                        foreach (UIElement element in MainCanvas.Children)
                         {
-                            HandleAppInFolder(appName, folder);
+                            if (element is Grid grid && grid.Tag is FolderTag folderTag && folderTag.FolderId == folder.ID)
+                            {
+                                folderGrid = grid;
+                                ExpandFolder(folder.ID, folderGrid);
+                                CollapseFolder(folder.ID, folderGrid);
+                                break;
+                            }
                         }
                     }
                 }
@@ -626,32 +634,6 @@ namespace Launch
             catch (Exception ex)
             {
                 MessageBox.Show($"Error saving folders: {ex.Message}");
-            }
-        }
-        private void HandleAppInFolder(string appName, Folder folder)
-        {
-            int indx = 1;
-            foreach (UIElement element in MainCanvas.Children)
-            {
-                if (element is Button button && button.Tag is ElementTag tag)
-                {
-                    if (tag.Name == appName)
-                    {
-                        if (indx < 5)
-                        {
-                            button.Visibility = Visibility.Visible;
-                        }
-                        else
-                        {
-                            button.Visibility = Visibility.Collapsed;
-                        }
-                        button.Width = 30;
-                        Canvas.SetLeft(button, folder.Position.X + (10 * indx));
-                        Canvas.SetTop(button, folder.Position.Y);
-                        break;
-                    }
-                }
-                indx++;
             }
         }
         #region App Button Creation
@@ -709,6 +691,7 @@ namespace Launch
                 bitmap.BeginInit();
                 bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                 bitmap.EndInit();
                 image.Source = bitmap;
             }
@@ -790,9 +773,22 @@ namespace Launch
         private void AnimateButtonScale(Button button, double scale)
         {
             var animation = new DoubleAnimation(scale, TimeSpan.FromMilliseconds(100));
-            var transform = (ScaleTransform)button.RenderTransform;
-            transform.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
-            transform.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+
+            // Handle both TransformGroup and ScaleTransform
+            if (button.RenderTransform is TransformGroup group)
+            {
+                var transform = group.Children.OfType<ScaleTransform>().FirstOrDefault();
+                if (transform != null)
+                {
+                    transform.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                    transform.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+                }
+            }
+            else if (button.RenderTransform is ScaleTransform transform)
+            {
+                transform.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
+                transform.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
+            }
         }
         #endregion
 
@@ -809,7 +805,6 @@ namespace Launch
 
             ClearButtonAnimations(_draggedElement as Button);
         }
-
         private void OnButtonMouseMove(object sender, MouseEventArgs e)
         {
             if (_draggedElement == null || !_draggedElement.IsMouseCaptured)
@@ -839,7 +834,8 @@ namespace Launch
                 double newLeft = Canvas.GetLeft(_draggedElement);
                 double newTop = Canvas.GetTop(_draggedElement);
 
-                var elements = MainCanvas.Children.OfType<FrameworkElement>();
+                // wtf happened here????
+                var elements = MainCanvas.Children.OfType<FrameworkElement>().Where(e => e != sender && IsElementAvailableForCollision(e));
                 CollisionResult hit = CheckActiveCollision((FrameworkElement)sender, elements);
 
 
@@ -849,7 +845,7 @@ namespace Launch
                 {
                     _isColliding = true;
 
-                    if(hit.Type == CollisionType.OuterHit)
+                    if (hit.Type == CollisionType.OuterHit)
                     {
                         MarkCollidingOuter((Button)sender, hit.Target);
                     }
@@ -923,8 +919,8 @@ namespace Launch
                     {
                         MarkCollidingInner((Button)sender, hit.Target);
 
-                        Position hitPos = new Position { X = GetElementPosition(hit.Target).X , Y = GetElementPosition(hit.Target).Y};
-                        CreateFolder(position: hitPos, b1:(Button)sender, b2: hit.Target);
+                        Position hitPos = new Position { X = GetElementPosition(hit.Target).X, Y = GetElementPosition(hit.Target).Y };
+                        CreateFolder(position: hitPos, b1: (Button)sender, b2: hit.Target);
                     }
 
                     ClearCollisionVisuals(elements);
@@ -944,6 +940,20 @@ namespace Launch
 
             Panel.SetZIndex((Button)sender, 2);
         }
+        private bool IsElementAvailableForCollision(FrameworkElement element)
+        {
+            // Allow grids (folders) to participate in collisions
+            if (element is Grid)
+                return true;
+
+            // For buttons, only allow if they're enabled (not part of a collapsed folder)
+            if (element is Button button)
+            {
+                return button.IsEnabled;
+            }
+
+            return true;
+        }
         private bool IsButtonInsideFolder(Button button, string folderId)
         {
             if (!_folders.ContainsKey(folderId))
@@ -951,14 +961,12 @@ namespace Launch
 
             var folder = _folders[folderId];
 
-            // Find the folder grid
             foreach (UIElement element in MainCanvas.Children)
             {
                 if (element is Grid grid && grid.Tag is FolderTag folderTag && folderTag.FolderId == folderId)
                 {
                     Rect folderRect = getMainRect(grid);
 
-                    // If folder is expanded, use expanded bounds
                     if (folder.IsExpanded)
                     {
                         double expandedWidth = grid.Width * FolderExpandedX;
@@ -986,14 +994,12 @@ namespace Launch
             double currentLeft = Canvas.GetLeft(element);
             double currentTop = Canvas.GetTop(element);
 
-            // Handle NaN values (elements that haven't been positioned yet)
             if (double.IsNaN(currentLeft)) currentLeft = 0;
             if (double.IsNaN(currentTop)) currentTop = 0;
 
             double newLeft = currentLeft + offset.X;
             double newTop = currentTop + offset.Y;
 
-            // Snap to pixel boundaries to reduce sub-pixel rendering issues
             newLeft = Math.Round(newLeft);
             newTop = Math.Round(newTop);
 
@@ -1075,18 +1081,15 @@ namespace Launch
             double x = Canvas.GetLeft(element);
             double y = Canvas.GetTop(element);
 
-            // Handle NaN values
             if (double.IsNaN(x)) x = 0;
             if (double.IsNaN(y)) y = 0;
 
-            // Ensure we have valid dimensions
             double width = element.ActualWidth;
             double height = element.ActualHeight;
 
             if (width <= 0 || height <= 0)
                 return Rect.Empty;
 
-            // Ensure threshold doesn't exceed half the element size
             double adjustedThreshold = Math.Min(threshhold, Math.Min(width / 2, height / 2));
 
             return new Rect(
@@ -1110,7 +1113,7 @@ namespace Launch
 
                 if (activeRect.IntersectsWith(getMainRect(elem)))
                 {
-                    if(elem is Control)
+                    if (elem is Control)
                     {
                         if (activeRect.IntersectsWith(getInnerRect(elem)))
                         {
@@ -1121,7 +1124,7 @@ namespace Launch
                             return new CollisionResult(elem, CollisionType.OuterHit);
                         }
                     }
-                    else if(elem is Shape || elem is Grid)
+                    else if (elem is Shape || elem is Grid)
                     {
                         return new CollisionResult(elem, CollisionType.OuterHit);
                     }
@@ -1129,6 +1132,23 @@ namespace Launch
             }
 
             return null;
+        }
+        private void ClearSingleElementVisual(FrameworkElement element)
+        {
+            switch (element)
+            {
+                case Control c when c.Resources.Contains("OriginalControlVisuals"):
+                    dynamic cv = c.Resources["OriginalControlVisuals"];
+                    c.BorderBrush = cv.BorderBrush;
+                    c.BorderThickness = cv.BorderThickness;
+                    c.Background = cv.Background;
+                    break;
+                case Shape s when s.Resources.Contains("OriginalShapeVisuals"):
+                    dynamic sv = s.Resources["OriginalShapeVisuals"];
+                    s.Stroke = sv.Stroke;
+                    s.StrokeThickness = sv.StrokeThickness;
+                    break;
+            }
         }
         void StoreOriginalControlVisuals(Control control)
         {
@@ -1265,8 +1285,22 @@ namespace Launch
             };
 
             var removeItem = CreateRemoveMenuItem(appName);
+            var editItemm = CreateEditMenuItem(appName);
+
             removeItem.Click += (s, args) => RemoveApplication(button, appName);
+
+            editItemm.Click += (s, args) =>
+            {
+                var settingsWindow = new Settings(this, true)
+                {
+                    Owner = this
+                };
+                settingsWindow.edit_app_tab(button, args);
+                settingsWindow.Show();
+            };
+
             contextMenu.Items.Add(removeItem);
+            contextMenu.Items.Add(editItemm);
 
             return contextMenu;
         }
@@ -1277,6 +1311,15 @@ namespace Launch
             return new MenuItem
             {
                 Header = $"Remove {appName}",
+                Style = menuItemStyle
+            };
+        }
+        private MenuItem CreateEditMenuItem(string appName)
+        {
+            var menuItemStyle = CreateMenuItemStyle();
+            return new MenuItem
+            {
+                Header = $"Edit {appName}",
                 Style = menuItemStyle
             };
         }
@@ -1484,7 +1527,7 @@ namespace Launch
         #region Settings Events
         private void Settings_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new Settings(this)
+            var settingsWindow = new Settings(this, false)
             {
                 Owner = this
             };
@@ -1510,7 +1553,7 @@ namespace Launch
             switch (e.PropertyName)
             {
                 case nameof(Properties.Settings.Default.ButtonSize):
-                    RefreshApplications();
+                    //RefreshApplications(); //need to change this later
                     break;
                 case nameof(Properties.Settings.Default.SnapToGrid):
                     _snapToGrid = Properties.Settings.Default.SnapToGrid;
@@ -1537,12 +1580,38 @@ namespace Launch
             }
         }
 
-        private void RefreshApplications()
+        public void RefreshApplications()
         {
-            MainCanvas.Children.Clear();
+            foreach(UIElement element in MainCanvas.Children)
+            {
+                if(element is Button)
+                {
+                    MainCanvas.Children.Remove(element);
+                }
+            }
             LoadApplications();
         }
+        public void RefreshAppImage(string appName)
+        {
+            foreach (UIElement element in MainCanvas.Children)
+            {
+                if (element is Button button && button.Tag is ElementTag tag && tag.Name == appName)
+                {
+                    if (button.Content is StackPanel panel)
+                    {
+                        var oldImage = panel.Children.OfType<Image>().FirstOrDefault();
+                        if (oldImage != null)
+                        {
+                            panel.Children.Remove(oldImage);
+                        }
 
+                        var newImage = LoadAppImage(appName);
+                        panel.Children.Insert(0, newImage);
+                    }
+                    break;
+                }
+            }
+        }
         private void RemoveElementByName(string name, string type = null)
         {
             UIElement elementToRemove = null;
@@ -1629,7 +1698,6 @@ namespace Launch
                 Tag = new FolderTag { FolderId = ID }
             };
 
-            // Folder background
             var folderRect = new Rectangle
             {
                 Fill = new SolidColorBrush(Color.FromArgb(120, 50, 50, 50)),
@@ -1655,10 +1723,11 @@ namespace Launch
 
             MainCanvas.Children.Add(folderGrid);
             Panel.SetZIndex(folderGrid, 1);
+
+            CollapseFolder(ID, folderGrid);
         }
         private void HandleFolderLeftMouseDown(object sender, MouseButtonEventArgs e)
         {
-           
             _draggedElement = sender as UIElement;
             _clickPosition = e.GetPosition(MainCanvas);
             _senderPosition = new Point(Canvas.GetLeft((Grid)sender), Canvas.GetTop((Grid)sender));
@@ -1666,13 +1735,34 @@ namespace Launch
             _draggedElement?.CaptureMouse();
 
             Panel.SetZIndex((Grid)sender, 3);
+
+            _folderChildButtons.Clear();
+            if (sender is Grid folderGrid && folderGrid.Tag is FolderTag folderTag)
+            {
+                var folder = _folders[folderTag.FolderId];
+
+                foreach (UIElement element in MainCanvas.Children)
+                {
+                    if (element is Button button && button.Tag is ElementTag tag && tag.ParentFolderId == folderTag.FolderId && button.Visibility == Visibility.Visible)
+                    {
+                        _folderChildButtons.Add(button);
+                        //Panel.SetZIndex(button, 4);
+                    }
+                }
+            }
+
+            _collisionCandidates = MainCanvas.Children
+                .OfType<FrameworkElement>()
+                .Where(e => e != _draggedElement && !_folderChildButtons.Contains(e) && (e is Button || e is Grid))
+                .ToList();
+
+            _lastCollidedElement = null;
+            _mouseMoveCounter = 0;
         }
         private void HandleFolderMouseMove(object sender, MouseEventArgs e)
         {
             if (_draggedElement == null || !_draggedElement.IsMouseCaptured)
                 return;
-
-            _isColliding = false;
 
             Point currentPosition = e.GetPosition(MainCanvas);
             Vector diff = currentPosition - _clickPosition;
@@ -1681,33 +1771,32 @@ namespace Launch
             {
                 _isDragging = true;
             }
+
             if (_isDragging)
             {
-                double oldLeft = Canvas.GetLeft(_draggedElement);
-                double oldTop = Canvas.GetTop(_draggedElement);
-                if (double.IsNaN(oldLeft)) oldLeft = 0;
-                if (double.IsNaN(oldTop)) oldTop = 0;
+                double newLeft = Canvas.GetLeft(_draggedElement) + diff.X;
+                double newTop = Canvas.GetTop(_draggedElement) + diff.Y;
 
-                MoveElement(_draggedElement, diff);
-                _clickPosition = currentPosition;
+                Canvas.SetLeft(_draggedElement, newLeft);
+                Canvas.SetTop(_draggedElement, newTop);
 
-                double newLeft = Canvas.GetLeft(_draggedElement);
-                double newTop = Canvas.GetTop(_draggedElement);
-
-                var elements = MainCanvas.Children.OfType<FrameworkElement>();
-                CollisionResult hit = CheckActiveCollision((FrameworkElement)sender, elements);
-
-
-                ClearCollisionVisuals(elements);
-
-                if (hit != null)
+                foreach (var button in _folderChildButtons)
                 {
-                    _isColliding = true;
+                    double buttonLeft = Canvas.GetLeft(button) + diff.X;
+                    double buttonTop = Canvas.GetTop(button) + diff.Y;
+
+                    Canvas.SetLeft(button, buttonLeft);
+                    Canvas.SetTop(button, buttonTop);
                 }
 
-                // Force immediate render to reduce glitching
-                _draggedElement.InvalidateVisual();
+                _clickPosition = currentPosition;
 
+                _mouseMoveCounter++;
+                if (_mouseMoveCounter % CollisionCheckThrottle == 0)
+                {
+                    var elements = MainCanvas.Children.OfType<FrameworkElement>();
+                    CollisionResult hit = CheckActiveCollision((FrameworkElement)sender, elements);
+                }
             }
         }
         private void HandleFolderLeftMouseUp(object sender, MouseButtonEventArgs e)
@@ -1716,6 +1805,12 @@ namespace Launch
                 return;
 
             _draggedElement.ReleaseMouseCapture();
+
+            if (_lastCollidedElement != null)
+            {
+                ClearSingleElementVisual(_lastCollidedElement);
+                ClearSingleElementVisual((FrameworkElement)sender);
+            }
 
             Grid folderGrid = sender as Grid ?? (sender as Rectangle)?.Parent as Grid;
             if (folderGrid?.Tag is not FolderTag folderTag)
@@ -1736,25 +1831,28 @@ namespace Launch
             }
             else
             {
-                if (_isColliding)
+                if (_isColliding && _lastCollidedElement != null)
                 {
-                    var elements = MainCanvas.Children.OfType<FrameworkElement>();
-                    CollisionResult hit = CheckActiveCollision((FrameworkElement)sender, elements);
+                    var (senderLeft, senderTop) = GetElementPosition((Grid)sender);
+                    var (hitLeft, hitTop) = GetElementPosition(_lastCollidedElement);
 
-                    //MessageBox.Show(hit.ToString());
+                    double offsetX = hitLeft - senderLeft;
+                    double offsetY = hitTop - senderTop;
 
-                    if (hit != null)
-                    {
-                        var (senderLeft, senderTop) = GetElementPosition((Grid)sender);
-                        var (hitLeft, hitTop) = GetElementPosition(hit.Target);
+                    Canvas.SetLeft((Grid)sender, hitLeft);
+                    Canvas.SetTop((Grid)sender, hitTop);
+                    Canvas.SetLeft(_lastCollidedElement, _senderPosition.X);
+                    Canvas.SetTop(_lastCollidedElement, _senderPosition.Y);
 
-                        Canvas.SetLeft((Grid)sender, hitLeft);
-                        Canvas.SetTop((Grid)sender, hitTop);
-                        Canvas.SetLeft(hit.Target, _senderPosition.X);
-                        Canvas.SetTop(hit.Target, _senderPosition.Y);
-                    }
-
-                    ClearCollisionVisuals(elements);
+                    // NEW: Apply same offset to child buttons
+                    //foreach (var button in _folderChildButtons)
+                    //{
+                    //    double buttonLeft = Canvas.GetLeft(button) + offsetX;
+                    //    double buttonTop = Canvas.GetTop(button) + offsetY;
+                    //    Canvas.SetLeft(button, buttonLeft);
+                    //    Canvas.SetTop(button, buttonTop);
+                    //}
+                    
                 }
 
                 var (folderPosX, folderPosY) = GetElementPosition((Grid)sender);
@@ -1762,12 +1860,29 @@ namespace Launch
                 folder.Position.Y = folderPosY;
 
                 if (_snapToGrid)
+                {
                     SnapElementToGrid(_draggedElement);
+
+                    foreach (var button in _folderChildButtons)
+                    {
+                        SnapElementToGrid(button);
+                    }
+                }
+
+                //// NEW: Reset Z-Index for child buttons
+                //foreach (var button in _folderChildButtons)
+                //{
+                //    Panel.SetZIndex(button, 2);
+                //}
+                HandleAppsInFolderCollapsed(folder, folderGrid);
             }
 
             _isDragging = false;
             _draggedElement = null;
             _isColliding = false;
+            _lastCollidedElement = null;
+            _collisionCandidates.Clear();
+            _folderChildButtons.Clear(); // NEW: Clear the cache
 
             SaveApplicationPositions();
             SaveFolders();
@@ -1780,7 +1895,6 @@ namespace Launch
             var folder = _folders[folderId];
             folder.IsExpanded = true;
 
-            // Calculate expanded size
             double expandedWidth = folderGrid.Width * FolderExpandedX;
             double expandedHeight = folderGrid.Height * FolderExpandedY;
 
@@ -1833,12 +1947,11 @@ namespace Launch
                         if (tag.Name == appName)
                         {
                             button.Visibility = Visibility.Visible;
+                            button.IsEnabled = true;
 
-                            // Calculate grid position
                             int row = index / appsPerRow;
                             int col = index % appsPerRow;
 
-                            // Calculate position with spacing
                             double offsetX = col * (cellWidth + spacing);
                             double offsetY = row * (cellHeight + spacing);
 
@@ -1848,9 +1961,10 @@ namespace Launch
                             Canvas.SetLeft(button, finalX);
                             Canvas.SetTop(button, finalY);
 
-                            // Optional: Resize buttons to fit better
                             button.Width = cellWidth;
                             button.Height = cellHeight;
+
+                            Panel.SetZIndex(button, 4);
 
                             index++;
                             break;
@@ -1860,6 +1974,7 @@ namespace Launch
             }
 
             SaveFolders();
+            Panel.SetZIndex(folderGrid, 3);
         }
 
         private void CollapseFolder(string folderId, Grid folderGrid)
@@ -1886,22 +2001,7 @@ namespace Launch
             transform.BeginAnimation(ScaleTransform.ScaleXProperty, animX);
             transform.BeginAnimation(ScaleTransform.ScaleYProperty, animY);
 
-            // Hide all apps in this folder
-            foreach (var appName in folder.ContainedApps)
-            {
-                
-                foreach (UIElement element in MainCanvas.Children)
-                {
-                    if (element is Button button && button.Tag is ElementTag tag)
-                    {
-                        if (tag.Name == appName)
-                        {
-                            button.Visibility = Visibility.Collapsed;
-                            break;
-                        }
-                    }
-                }
-            }
+            HandleAppsInFolderCollapsed(folder, folderGrid);
 
             SaveFolders();
         }
@@ -1938,6 +2038,80 @@ namespace Launch
             SaveFolders();
             SaveApplicationPositions();
 
+        }
+        private void HandleAppsInFolderCollapsed(Folder folder, Grid folderGrid)
+        {
+            double expandedWidth = folderGrid.Width;
+            double expandedHeight = folderGrid.Height;
+
+            int appsPerRow = 2;
+            double padding = 10;
+            double spacing = 5;
+
+            int totalApps = folder.ContainedApps.Count;
+            int rows = (int)Math.Ceiling(totalApps / (double)appsPerRow);
+
+            double availableWidth = expandedWidth - (2 * padding);
+            double availableHeight = expandedHeight - (2 * padding);
+
+            double cellWidth = 30;
+            double cellHeight = 30;
+
+            double gridLeft = Canvas.GetLeft(folderGrid);
+            double gridTop = Canvas.GetTop(folderGrid);
+
+            if (double.IsNaN(gridLeft)) gridLeft = 0;
+            if (double.IsNaN(gridTop)) gridTop = 0;
+
+            double folderCenterX = gridLeft + (folderGrid.Width / 2);
+            double folderCenterY = gridTop + (folderGrid.Height / 2);
+
+            double startX = folderCenterX - (expandedWidth / 2);
+            double startY = folderCenterY - (expandedHeight / 2) + padding;
+
+            int cntr = 0;
+
+            foreach (var appName in folder.ContainedApps)
+            {
+
+                foreach (UIElement element in MainCanvas.Children)
+                {
+                    if (element is Button button && button.Tag is ElementTag tag)
+                    {
+                        if (tag.Name == appName)
+                        {
+                            if (cntr < 5)
+                            {
+                                button.Visibility = Visibility.Visible;
+                                button.IsEnabled = false;
+                                button.Width = 30;
+
+                                int row = (cntr / appsPerRow) - 1;
+                                int col = cntr % appsPerRow;
+
+                                double offsetX = col * (cellWidth + spacing);
+                                double offsetY = row * (cellHeight + spacing);
+
+                                double finalX = startX + offsetX;
+                                double finalY = startY + offsetY;
+
+                                Canvas.SetLeft(button, finalX);
+                                Canvas.SetTop(button, finalY);
+
+                                Panel.SetZIndex(button, 0);
+
+                                break;
+                            }
+                            else
+                            {
+                                button.Visibility = Visibility.Collapsed;
+                                break;
+                            }
+                        }
+                    }
+                }
+                cntr++;
+            }
         }
     }
     

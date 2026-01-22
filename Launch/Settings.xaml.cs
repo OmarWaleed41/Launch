@@ -58,10 +58,11 @@ namespace Launch
 
         #region Events
         public event EventHandler<string> UpdateRequested;
+        private bool _skipDefaultTab = false;
         #endregion
 
         #region Constructor and Initialization
-        public Settings(MainWindow mainWindow)
+        public Settings(MainWindow mainWindow, bool skipDefaultTab)
         {
             _baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
             _mainFolder = Path.Combine(_baseDirectory, "src");
@@ -72,11 +73,18 @@ namespace Launch
 
             _mainWindow = mainWindow;
 
+            _skipDefaultTab = skipDefaultTab;
+
             InitializeComponent();
             LoadSettings();
 
-            Loaded += (s, e) => apps_tab(s, e);
+            if (!skipDefaultTab)
+            {
+                Loaded += (s, e) => apps_tab(s, e);
+            }
+
             Icon = new BitmapImage(new Uri("pack://application:,,,/src/imgs/gui.ico", UriKind.Absolute));
+            _skipDefaultTab = skipDefaultTab;
         }
 
         private void LoadSettings()
@@ -102,40 +110,88 @@ namespace Launch
 
             main.Children.Add(container);
         }
+        public void edit_app_tab(object sender, RoutedEventArgs e)
+        {
+            main.Children.Clear();
 
+            var container = CreateMainContainer();
+
+            container.Children.Add(CreateSectionHeader("Edit App:"));
+
+            var editGrid = CreateAddAppGrid(sender);
+
+            container.Children.Add(editGrid);
+
+            main.Children.Add(container);
+        }
         private void AddAppsSection(StackPanel container)
         {
             container.Children.Add(CreateSectionHeader("Add a New App:"));
 
-            var addGrid = CreateAddAppGrid();
+            var addGrid = CreateAddAppGrid(container);
             container.Children.Add(addGrid);
         }
 
-        private Grid CreateAddAppGrid()
+        private Grid CreateAddAppGrid(object sender)
         {
             var grid = CreateFormGrid(4);
 
-            // App Name
-            AddFormRow(grid, 0, "App Name:", out _appNameTextBox);
 
-            // App Path with Browse button
-            AddFormRowWithButton(grid, 1, "App Path:", out _appPathTextBox, "Browse", OnBrowseAppClick);
+            string action = "Add";
+            bool actionflag = true;
+            string appName = "";
+            string appPath = "";
+            string appImg = "";
+            
+            if (sender is Button button)
+            {
+                var apps = LoadAppsFromJson();
+                foreach (var app in apps)
+                {
+                    if (button.Tag.ToString() == app.Key.ToString() || (button.Tag is ElementTag tag && tag.Name.ToString() == app.Key.ToString()))
+                    {
+                        action = "Edit";
+                        actionflag = false;
+                        appName = app.Key.ToString();
+                        appPath = app.Value.Path.ToString();
+                        appImg = Path.Combine(_imgPath, $"{appName}.png");
+                        break;
+                    }
+                }
+            }
 
-            // Image with Browse button
-            AddFormRowWithButton(grid, 2, "Image:", out _imagePathTextBox, "Browse", OnBrowseImageClick);
+            AddFormRow(grid, 0, "App Name:", out _appNameTextBox, defaultText: appName);
+            AddFormRowWithButton(grid, 1, "App Path:", out _appPathTextBox, "Browse", OnBrowseAppClick, defaultText: appPath);
+            AddFormRowWithButton(grid, 2, "Image:", out _imagePathTextBox, "Browse", OnBrowseImageClick, defaultText: appImg);
 
-            // Add button
-            var addButton = CreateActionButton("Add", OnAddAppClick);
-            grid.Children.Add(addButton);
-            Grid.SetRow(addButton, 3);
-            Grid.SetColumn(addButton, 1);
+            if (actionflag)
+            {
+                _appNameTextBox.IsEnabled = true;
+
+                var addButton = CreateActionButton(action, OnAddAppClick);
+                grid.Children.Add(addButton);
+                Grid.SetRow(addButton, 3);
+                Grid.SetColumn(addButton, 1);
+            }
+            else
+            {
+                _appNameTextBox.IsReadOnly = true;
+                _appNameTextBox.IsEnabled = false;
+                _appNameTextBox.Background = Brushes.LightGray;
+
+                var editButton = CreateActionButton(action, (s, e) => OnEditAppActionClick(sender, e));
+                grid.Children.Add(editButton);
+                Grid.SetRow(editButton, 3);
+                Grid.SetColumn(editButton, 1);
+            }
 
             return grid;
         }
 
+
         private void AddRemoveAppsSection(StackPanel container)
         {
-            container.Children.Add(CreateSectionHeader("Remove Apps:"));
+            container.Children.Add(CreateSectionHeader("Remove/Edit Apps:"));
 
             try
             {
@@ -193,9 +249,11 @@ namespace Launch
 
             var image = LoadAppImage(appName);
             var removeButton = CreateRemoveButton(appName, OnRemoveAppClick);
+            var editButton = CreateEditButton(appName, OnEditAppClick);
 
             panel.Children.Add(image);
             panel.Children.Add(removeButton);
+            panel.Children.Add(editButton);
 
             return panel;
         }
@@ -281,7 +339,51 @@ namespace Launch
 
             apps_tab(sender, e);
         }
+        private void OnEditAppActionClick(object sender, RoutedEventArgs e)
+        {
+            if (!ValidateAppInputs())
+            {
+                MessageBox.Show("Please fill all fields.");
+                return;
+            }
 
+            var newPath = _appPathTextBox.Text.Trim();
+            var newImagePath = _imagePathTextBox.Text.Trim();
+
+            if (sender is Button button && button.Tag is ElementTag tag)
+            {
+                var apps = LoadAppsFromJson();
+
+                if (!apps.ContainsKey(tag.Name))
+                {
+                    MessageBox.Show("Original app not found.");
+                    return;
+                }
+
+                var oldApp = apps[tag.Name];
+                var oldName = tag.Name;
+
+                if (newImagePath != Path.Combine(_imgPath, $"{oldName}.png"))
+                {
+                    MessageBox.Show("img changed");
+                    CopyAppImage(newImagePath, oldName);
+                }
+
+                apps[oldName] = new AppInfo
+                {
+                    Path = newPath,
+                    Position = oldApp.Position,
+                    ParentFolderId = oldApp.ParentFolderId ?? String.Empty
+                };
+
+                SaveAppsToJson(apps);
+
+                UpdateRequested?.Invoke(this, $"remove:{oldName}:button");
+                _mainWindow.RefreshAppImage(oldName);
+                MessageBox.Show("App updated successfully!");
+                apps_tab(sender, e);
+            }
+        }
         private bool ValidateAppInputs()
         {
             return !string.IsNullOrWhiteSpace(_appNameTextBox.Text) &&
@@ -336,7 +438,16 @@ namespace Launch
 
             apps_tab(sender, e);
         }
+        public void OnEditAppClick(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not string appName)
+                return;
 
+            if (string.IsNullOrEmpty(appName))
+                return;
+
+            edit_app_tab(button, e);
+        }
         private void RemoveAppFromJson(string appName)
         {
             var apps = LoadAppsFromJson();
@@ -842,9 +953,9 @@ namespace Launch
         }
 
         private void AddFormRowWithButton(Grid grid, int row, string labelText, out TextBox textBox,
-            string buttonText, RoutedEventHandler buttonClickHandler)
+            string buttonText, RoutedEventHandler buttonClickHandler, string defaultText = "")
         {
-            AddFormRow(grid, row, labelText, out textBox);
+            AddFormRow(grid, row, labelText, out textBox, defaultText: defaultText);
 
             var button = new Button
             {
@@ -903,6 +1014,17 @@ namespace Launch
             var button = new Button
             {
                 Content = "Remove",
+                Style = (Style)FindResource("RoundedButtonStyle"),
+                Tag = tag
+            };
+            button.Click += clickHandler;
+            return button;
+        }
+        private Button CreateEditButton(string tag, RoutedEventHandler clickHandler)
+        {
+            var button = new Button
+            {
+                Content = "Edit",
                 Style = (Style)FindResource("RoundedButtonStyle"),
                 Tag = tag
             };
